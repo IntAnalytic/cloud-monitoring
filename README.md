@@ -29,6 +29,7 @@
 - The program produces images and csv files in the default directory.
 - It uses these files, and the html inside to send emails to respective email addresses after connecting to the smtp server. 
 - When a new csv file is created in the above folder, its contents are read.
+- The python file `Main_test.py` is for testing first half of the program i.e. if the program generates images or not.
 
 ## REFERENCES
 ​
