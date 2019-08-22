@@ -1,0 +1,10 @@
+item,uni_ccp,corp_pgs,inv_wr,inv_sr,inv_ner,inv_sw
+ClusterName,uni_ccp,corp_pgs,inv_wr,inv_sr,inv_ner,inv_sw
+Type,ds2.xlarge,db.m4.xlarge,ds2.xlarge,ds2.xlarge,ds2.xlarge,ds2.xlarge
+Available,Yes,Yes,Yes,Yes,Yes,Yes
+Role,Production,Production,Test,QA,Test,Test
+Availability,100%,100%,100%,100%,100%,100%
+Storage (TB),7.6,3.8,7.6,11.4,3.8,3.8
+Recent Snapshot,Yes,Yes,Yes,No,Yes,Yes
+Version,1.0.7562,10.4,1.0.7804,1.0.7804,1.0.7804,1.0.7804
+Nodes,4,2,4,4,3,2
