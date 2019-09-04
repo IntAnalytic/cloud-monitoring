@@ -1,0 +1,10 @@
+WbCopy -sourceProfile=RSSourceWBProfile
+       -sourceGroup=RSSourceWBProfileGroup
+       -targetProfile=DestinationWBProfile
+       -targetGroup=DestinationWBProfileGroup
+       -targetTable=clustermetrics.longrunningqueries
+       -sourceQuery="select '<clustername>' clustername,u.usename username,q.starttime starttime,q.endtime endtime,ql.querytxt querytext,q.elapsed elapsed,getdate() dateentered from svl_qlog q join pg_user u on u.usesysid = q.userid join stl_query ql on q.xid = ql.xid where q.starttime > getdate() - 1 and datediff(sec, q.starttime, q.endtime) > 15 and u.usesysid > 1 and ql.label not in ('health', 'metrics') and ql.querytxt not like 'Small Table Conversion%' group by u.usename, q.starttime, q.endtime, ql.querytxt, q.elapsed;"
+       -ignoreIdentityColumns=false
+       -deleteTarget=false
+       -continueOnError=false
+;

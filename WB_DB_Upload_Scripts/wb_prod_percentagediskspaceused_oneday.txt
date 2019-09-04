@@ -1,0 +1,15 @@
+WbImport -file=cluster1_percentagediskspaceused_oneday.txt
+         -type=text
+         -table=clustermetrics.cluster1percentagediskspaceused_byday
+         -encoding="ISO-8859-15"
+         -header=true
+         -decode=false
+         -dateFormat="yyyy-MM-dd"
+         -timestampFormat="yyyy-MM-dd HH:mm:ss"
+         -delimiter='	'
+         -decimal=.
+         -fileColumns=datapoint,maxdiskspaceused,datetime,measurment
+         -quoteCharEscaping=none
+         -ignoreIdentityColumns=false
+         -deleteTarget=false
+         -continueOnError=false;

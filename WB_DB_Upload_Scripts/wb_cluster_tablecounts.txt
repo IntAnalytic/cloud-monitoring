@@ -1,0 +1,11 @@
+WbCopy -sourceProfile=RSSourceWBProfile
+       -sourceGroup=RSSourceWBProfileGroup
+       -targetProfile=DestinationWBProfile
+       -targetGroup=DestinationWBProfileGroup
+       -targetTable=clustermetrics.tablecountmetrics
+       -sourceQuery="select '<clustername>', count(*) as TotalTablesAllSchemas , 9900 as Totalallowabletables, getdate() as dateentered from svv_table_info; "
+       -columns='clustername, TotalTablesAllSchemas, Totalallowabletables, dateentered'
+       -ignoreIdentityColumns=false
+       -deleteTarget=false
+       -continueOnError=false
+;

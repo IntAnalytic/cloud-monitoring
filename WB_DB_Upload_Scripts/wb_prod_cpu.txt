@@ -1,0 +1,15 @@
+WbImport -file=Prod_Cpu.TXT
+         -type=text
+         -table=clustermetrics.cluster1cpu
+         -encoding="ISO-8859-15"
+         -header=true
+         -decode=false
+         -dateFormat="yyyy-MM-dd"
+         -timestampFormat="yyyy-MM-dd HH:mm:ss"
+         -delimiter='	'
+         -decimal=.
+         -fileColumns=datapoint,averagevalue,datetime,measurment
+         -quoteCharEscaping=none
+         -ignoreIdentityColumns=false
+         -deleteTarget=false
+         -continueOnError=false;

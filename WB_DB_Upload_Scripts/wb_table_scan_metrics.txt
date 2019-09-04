@@ -1,0 +1,10 @@
+WbCopy -sourceProfile=RSSourceWBProfile
+       -sourceGroup=RSSourceWBProfileGroup
+       -targetProfile=DestinationWBProfile
+       -targetGroup=DestinationWBProfileGroup
+       -targetTable=clustermetrics.tablescanmetrics
+       -sourceQuery="SELECT '<clustername>' clustername, t.schema schemaname ,t.table tablename,COALESCE(s.num_qs, 0::bigint) scans , getdate() dateentered  FROM svv_table_info t LEFT JOIN ( SELECT s.tbl, s.perm_table_name, count(DISTINCT s.query) AS num_qs  FROM stl_scan s WHERE s.userid > 1 AND s.perm_table_name <> 'Internal Worktable'::bpchar AND s.perm_table_name <> 'S3'::bpchar   GROUP BY s.tbl, s.perm_table_name) s ON s.tbl::oid = t.table_id AND t.schema<> 'pg_internal'::character varying::text          where          COALESCE(s.num_qs, 0::bigint) > 0 ORDER BY COALESCE(s.num_qs, 0::bigint) DESC;"
+       -ignoreIdentityColumns=false
+       -deleteTarget=false
+       -continueOnError=false
+;

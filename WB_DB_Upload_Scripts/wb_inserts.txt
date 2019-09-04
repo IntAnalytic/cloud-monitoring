@@ -1,0 +1,10 @@
+WbCopy -sourceProfile=RSSourceWBProfile
+       -sourceGroup=RSSourceWBProfileGroup
+       -targetProfile=DestinationWBProfile
+       -targetGroup=DestinationWBProfileGroup
+       -targetTable=clustermetrics.tableinserts
+       -sourceQuery="select  '<clustername>' clustername,u.usename username,si.starttime starttime,si.endtime endtime,sv.schema schemaname,sv.table tablename,sum(si.rows) numberrows,getdate() dateentered from STL_INSERT si join SVV_Table_info sv on si.tbl = sv.table_id join pg_user u on u.usesysid = si.userid where starttime > getdate() - 1 and si.rows > 500 and si.slice =1 group by sv.schema, sv.table, u.usename, si.starttime, si.endtime, si.query order by sum(si.rows) desc;"
+       -ignoreIdentityColumns=false
+       -deleteTarget=false
+       -continueOnError=false
+;

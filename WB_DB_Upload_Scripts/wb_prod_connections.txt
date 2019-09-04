@@ -1,0 +1,15 @@
+WbImport -file=Prod_Conn.TXT
+         -type=text
+	 -table=clustermetrics.clusterconnections
+         -encoding="ISO-8859-15"
+         -header=true
+         -decode=false
+         -dateFormat="yyyy-MM-dd"
+         -timestampFormat="yyyy-MM-dd HH:mm:ss"
+         -delimiter='	'
+         -decimal=.
+         -fileColumns=datapoint,maxconnections,datetime,measurment
+         -quoteCharEscaping=none
+         -ignoreIdentityColumns=false
+         -deleteTarget=false
+         -continueOnError=false;

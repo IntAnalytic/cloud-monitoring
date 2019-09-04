@@ -1,0 +1,11 @@
+WbCopy -sourceProfile=RSSourceWBProfile
+       -sourceGroup=RSSourceWBProfileGroup
+       -targetProfile=DestinationWBProfile
+       -targetGroup=DestinationWBProfileGroup
+       -targetTable=clustermetrics.clustercapacity
+       -sourceQuery="select '<clustername>', getdate(), (select sum(capacity)/3 from STV_PARTITIONS)/1000 , sum(used)/1024,((select sum(capacity)/3 from STV_PARTITIONS)/1000-(sum(used))/1024) as free_gbytes from   stv_partitions where part_begin=0;" 
+       -columns='clustername, dateentered, totalcapacitygb, usedcapacitygb, freespacegb'
+       -ignoreIdentityColumns=false
+       -deleteTarget=false
+       -continueOnError=false
+;

@@ -1,0 +1,30 @@
+WbCopy -sourceProfile=RSSourceWBProfile
+       -sourceGroup=RSSourceWBProfileGroup
+       -targetProfile=DestinationWBProfile
+       -targetGroup=DestinationWBProfileGroup
+       -targetTable=clustermetrics.schemacapacity
+       -sourceQuery="select '<ClusterName>' as clustername, 
+    
+    trim(pgn.nspname) as SchemaName,
+     sum(b.mbytes) as SchemaSizeMb, 
+     getdate() as DateEntered
+from (
+    select db_id, id, name, sum(rows) as rows
+    from stv_tbl_perm a
+    group by db_id, id, name
+) as a
+join pg_class as pgc on pgc.oid = a.id
+join pg_namespace as pgn on pgn.oid = pgc.relnamespace
+join pg_database as pgdb on pgdb.oid = a.db_id
+join (
+    select tbl, count(*) as mbytes
+    from stv_blocklist
+    group by tbl
+) b on a.id = b.tbl
+group by pgn.nspname
+order by sum(b.mbytes) desc
+"
+       -ignoreIdentityColumns=false
+       -deleteTarget=false
+       -continueOnError=false
+;
