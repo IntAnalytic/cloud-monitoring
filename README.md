@@ -1,5 +1,7 @@
 # Redshift monitoring and reporting
-​
+![](py_src/images/Screen%20Shot%201.png)
+![](py_src/images/Screen%20Shot%202.png)
+![](py_src/images/Screen%20Shot%203.png)
 ## Assumptions
 ​
 - Python 3.7.3 is installed and properly configured.
