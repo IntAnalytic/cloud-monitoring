@@ -1,125 +1,73 @@
-import plotly
-plotly.tools.set_credentials_file(username='ENTER YOUR PLOTLY USERNAME HERE', api_key='ENTER YOUR API KEY HERE')
-import plotly.plotly as py
-import plotly.graph_objs as go
-import plotly.io as pio
+import matplotlib.pyplot as plt
+import pandas as pd
 
 def sendfunc(rows4): 
 
-    l = []
+    #Extract schemas from the list
+    ext_schemas = [i[0] for i in rows4]
 
-    for i in rows4:
-        l.append(list(i))
+    #Extract values from the list
+    ext_values = [i[1] for i in rows4]
 
-    schema = [i[0] for i in l]
+    #Convert the values into int
+    int_values = [int(j) for j in ext_values]
 
-    nos = [i[1] for i in l]
+    def merge(list1, list2): 
+        
+        merged_list = [(list1[i], list2[i]) for i in range(0, len(list1))] 
+        return merged_list
 
-    nos = [int(x) for x in nos]
+    list1 = ext_schemas
+    list2 = int_values
+    new_rows4 = merge(list1, list2) #Feeding new_rows4 into the dataframe to get int values instead of float values
 
-    i = 0
-    t = 0
-    while i < len(nos):
-        t += nos[i]
-        i += 1
+    df = pd.DataFrame(new_rows4)
+    df.columns = ['schemas', 'values']
 
-    P = [float(x/t*100) for x in nos]
+    values = df.loc[:, 'values']
+    schemas = df.loc[:, 'schemas']
 
-    trace1 = go.Bar(
-        y=[''],
-        x=[P[0]], 
-        name = (f"{schema[0]}"),
-        text = (f"{nos[0]}"),
-        textposition = 'auto',
-        orientation = 'h',
-        marker = dict(
-            color = 'rgba(103, 240, 160, 0.75)',
-            line = dict(
-                color = '#43BD78',
-                width = 3)
-        )
-    )
-    trace2 = go.Bar(
-        y=[''],
-        x=[P[1]],
-        name=(f"{schema[1]}"),
-        text = (f"{nos[1]}"),
-        textposition = 'auto',
-        orientation = 'h',
-        marker = dict(
-            color = 'rgba(255, 172, 188, 0.75)',
-            line = dict(
-                color = '#E67188',
-                width = 3)
-        )
-    )
-    trace3 = go.Bar(
-        y=[''],
-        x=[P[2]],
-        name=(f"{schema[2]}"),
-        text = (f"{nos[2]}"),
-        textposition = 'auto',
-        orientation = 'h',
-        marker = dict(
-            color = 'rgba(177, 193, 216, 1.0)',
-            line = dict(
-                color = '#82A1D0',
-                width = 3)
-        )
-    )
-    trace4 = go.Bar(
-        y=[''],
-        x=[P[3]],
-        name=(f"{schema[3]}"),
-        text = (f"{nos[3]}"),
-        textposition = 'auto',
-        orientation = 'h',
-        marker = dict(
-            color = 'rgba(250, 184, 126, 0.75)',
-            line = dict(
-                color = '#DF8E47',
-                width = 3)
-        )
-    )
-    trace5 = go.Bar(
-        y=[''],
-        x=[P[4]],
-        name=(f"{schema[4]}"),
-        text = (f"{nos[4]}"),
-        textposition = 'inside',
-        orientation = 'h',
-        marker = dict(
-            color = '#C8A8CD',
-            line = dict(
-                color = '#9C7DA1',
-                width = 3)
-        )
-    )
-    data = [trace1, trace2, trace3, trace4, trace5]
-    layout = go.Layout(
-        autosize=False,
-        width=700,
-        height=110,
-        barmode='stack',
-        xaxis=dict(ticksuffix="%"),
-        legend=dict(
-            orientation="h", 
-            x=0.06, 
-            y=-0.27,
-            font=dict(
-                size=10.5
-            )
-        ),
-        margin=go.layout.Margin(
-            l=60,
-            r=60,
-            b=0,
-            t=0,
-            pad=0
-        )
-    )
+    pal = ["#43BD78", "#DF8E47", "#9C7DA1", "#E67188", "#82A1D0"]
+    ax = df[['values']].T.plot(kind='barh', stacked=True, width=1.3, color=pal, figsize=(20, 10), position=-0.5)
+    total = sum(row for row in values)
+    total = total // 5
+    collection = [0]
+    for i in range(1,6):
+        collection.append(total*i)
+    ii = 0
+    for i in ax.patches:
+        ax.text(i.get_x()+100 , i.get_height()+0.6, \
+                str(values[ii])+" ", fontsize=15,
+                color='black', rotation = 90)
+        ii += 1
 
-    fig = go.Figure(data=data, layout=layout)
-    py.iplot(fig, filename='marker-h-bar')
+    ax.set(yticks=[])
+    ax.set_xticks(collection)
 
-    pio.write_image(fig,'schemas_uniccp.png')
+    ax.set_xticklabels(['0%','20%','40%','60%','80%','100%'], fontsize=15)
+    ax.legend(ext_schemas, loc='upper center', bbox_to_anchor=(0.475, -0.05), ncol=len(values), prop={'size': 13.5})
+    ax.set_frame_on(False)
+    plt.ylim(1.5, 5.5)
+    plt.savefig('temporary.png', transparent=False, bbox_inches='tight', pad_inches=0.25)
+
+    # Importing Image class from PIL module 
+    from PIL import Image 
+    
+    # Opens a image in RGB mode 
+    im = Image.open('temporary.png') 
+    
+    # Setting the points for cropped image 
+    left = 0
+    top = 700
+    right = 1560
+    bottom = 890
+    
+    # Crop image of above dimension 
+    im1 = im.crop((left, top, right, bottom))
+
+    # Resize the cropped image
+    newsize = (1000, 100) 
+    im2 = im1.resize(newsize)
+    
+    # Saves the permanent image
+    im2.save('graph_images/schemas_uniccp.png')

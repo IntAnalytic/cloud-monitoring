@@ -7,15 +7,15 @@ import LTCuniccp
 import Schemasuniccp
 import CDuniccp
 
-import LSCinvsr
-import LTCinvsr
-import Schemasinvsr
-import CDinvsr
+# import LSCinvsr
+# import LTCinvsr
+# import Schemasinvsr
+# import CDinvsr
 
-import LSCcorppgs
-import LTCcorppgs
-import Schemascorppgs
-import CDcorppgs
+# import LSCcorppgs
+# import LTCcorppgs
+# import Schemascorppgs
+# import CDcorppgs
 
 def DBConn():
     try:
@@ -29,7 +29,7 @@ def DBConn():
         print (connection.get_dsn_parameters(),"\n")
         # Print PostgreSQL version
         
-        cursor.execute("select * from clustermetrics.summary_clusterstats;")
+        cursor.execute("select cluster1 from clustermetrics.summary_clusterstats order by metric;")
         rows1 = cursor.fetchall()
         ClusterStats.sendfunc(rows1)
 
@@ -40,10 +40,31 @@ def DBConn():
         with open("sidebar.csv", "w") as file:
             cur.copy_expert(sql, file)
 
-        #Fetch data for uni_ccp
-        cursor.execute("select change2week, capacitydate from clustermetrics.predictive_summary where clustername='uni_ccp';")
+        #First - under “Week”:
+        cursor.execute("select to_char(cast(current_date-INTERVAL '7 Day' as  DATE), 'MM/DD/YYYY') || ' - ' ||  to_char(cast(current_date-INTERVAL '1 Day' as  DATE), 'MM/DD/YYYY');")
         cur = connection.cursor()
-        sql = "COPY (select change2week, capacitydate from clustermetrics.predictive_summary where clustername='uni_ccp') TO STDOUT WITH DELIMITER ',' CSV HEADER"
+        sql = "COPY (select to_char(cast(current_date-INTERVAL '7 Day' as  DATE), 'MM/DD/YYYY') || ' - ' ||  to_char(cast(current_date-INTERVAL '1 Day' as  DATE), 'MM/DD/YYYY')) TO STDOUT WITH DELIMITER ',' CSV HEADER"
+        with open("subject.csv", "w") as file:
+            cur.copy_expert(sql, file)
+        
+        #Second – this one will be yesterday and 7 days before, since the latest data will be pulled in the previous day:
+        cursor.execute("select to_char(cast(current_date-INTERVAL '7 Day' as  DATE), 'MM/DD/YYYY') || '-' ||  to_char(cast(current_date-INTERVAL '1 Day' as  DATE), 'MM/DD/YYYY');")
+        cur = connection.cursor()
+        sql = "COPY (select to_char(cast(current_date-INTERVAL '7 Day' as  DATE), 'MM/DD/YYYY') || '-' ||  to_char(cast(current_date-INTERVAL '1 Day' as  DATE), 'MM/DD/YYYY')) TO STDOUT WITH DELIMITER ',' CSV HEADER"
+        with open("week.csv", "w") as file:
+            cur.copy_expert(sql, file)
+
+        #Third – over the trending graphs:
+        cursor.execute("select to_char(cast(current_date-INTERVAL '62 Day' as  DATE), 'MM/DD/YYYY') || '-' ||  to_char(cast(current_date-INTERVAL '1 Day' as  DATE), 'MM/DD/YYYY');")
+        cur = connection.cursor()
+        sql = "COPY (select to_char(cast(current_date-INTERVAL '62 Day' as  DATE), 'MM/DD/YYYY') || '-' ||  to_char(cast(current_date-INTERVAL '1 Day' as  DATE), 'MM/DD/YYYY')) TO STDOUT WITH DELIMITER ',' CSV HEADER"
+        with open("capacity.csv", "w") as file:
+            cur.copy_expert(sql, file)
+
+        #Fetch data for uni_ccp
+        cursor.execute("select change2week, capacitydate from clustermetrics.predictive_summary where clustername='uni_ccp' order by metric desc;")
+        cur = connection.cursor()
+        sql = "COPY (select change2week, capacitydate from clustermetrics.predictive_summary where clustername='uni_ccp' order by metric desc) TO STDOUT WITH DELIMITER ',' CSV HEADER"
         with open("htmltable_uniccp.csv", "w") as file:
             cur.copy_expert(sql, file)
 
@@ -59,61 +80,9 @@ def DBConn():
         rows4 = cursor.fetchall()
         Schemasuniccp.sendfunc(rows4)
 
-        cursor.execute("select * from clustermetrics.summary_cluster_stats where clustername = 'uni_ccp' and cast(dateentered as date) between '2019-03-10' and '2019-06-11' order by dateentered asc;")
-        cur = connection.cursor()
-        sql = "COPY (select * from clustermetrics.summary_cluster_stats where clustername = 'uni_ccp' and cast(dateentered as date) between '2019-03-10' and '2019-06-11' order by dateentered asc) TO STDOUT WITH DELIMITER ',' CSV HEADER"
-        with open("capacitydate_uniccp.csv", "w") as file:
-            cur.copy_expert(sql, file)
-
-        #Fetch data for inv_sr
-        cursor.execute("select change2week, capacitydate from clustermetrics.predictive_summary where clustername='inv_sr';")
-        cur = connection.cursor()
-        sql = "COPY (select change2week, capacitydate from clustermetrics.predictive_summary where clustername='inv_sr') TO STDOUT WITH DELIMITER ',' CSV HEADER"
-        with open("htmltable_invsr.csv", "w") as file:
-            cur.copy_expert(sql, file)
-
-        cursor.execute("select schemaorremaining, usedandremaining from clustermetrics.latestschemacapacity where clustername = 'inv_sr' order by usedandremaining asc;")
+        cursor.execute("select clustername, StorageCapacity, ConnectionsTotal, CPUAvg, Table_1, dateentered::varchar(50) from clustermetrics.summary_cluster_stats where clustername = 'uni_ccp' AND dateentered::date > current_date - INTERVAL '365 Days' and dateentered::date < current_date - INTERVAL '303 Days' order by dateentered::date asc;")
         rows5 = cursor.fetchall()
-        LSCinvsr.sendfunc(rows5)
-
-        cursor.execute("select tablecountorremaining, usedandremaining from clustermetrics.latesttablecapacity where clustername = 'inv_sr' order by usedandremaining asc;")
-        rows6 = cursor.fetchall()
-        LTCinvsr.sendfunc(rows6)
-
-        cursor.execute("select schemaorremaining, usedandremaining from clustermetrics.lateststaleschema where clustername = 'inv_sr' order by usedandremaining asc;")
-        rows7 = cursor.fetchall()
-        Schemasinvsr.sendfunc(rows7)
-
-        cursor.execute("select * from clustermetrics.summary_cluster_stats where clustername = 'inv_sr' and cast(dateentered as date) between '2019-03-10' and '2019-06-11' order by dateentered asc;")
-        cur = connection.cursor()
-        sql = "COPY (select * from clustermetrics.summary_cluster_stats where clustername = 'inv_sr' and cast(dateentered as date) between '2019-03-10' and '2019-06-11' order by dateentered asc) TO STDOUT WITH DELIMITER ',' CSV HEADER"
-        with open("capacitydate_invsr.csv", "w") as file:
-            cur.copy_expert(sql, file)
-
-        #Fetch data for corp_pgs
-        cursor.execute("select change2week, capacitydate from clustermetrics.predictive_summary where clustername='corp_pgs';")
-        cur = connection.cursor()
-        sql = "COPY (select change2week, capacitydate from clustermetrics.predictive_summary where clustername='corp_pgs') TO STDOUT WITH DELIMITER ',' CSV HEADER"
-        with open("htmltable_corppgs.csv", "w") as file:
-            cur.copy_expert(sql, file)
-
-        cursor.execute("select schemaorremaining, usedandremaining from clustermetrics.latestschemacapacity where clustername = 'corp_pgs' order by usedandremaining asc;")
-        rows8 = cursor.fetchall()
-        LSCcorppgs.sendfunc(rows8)
-
-        cursor.execute("select tablecountorremaining, usedandremaining from clustermetrics.latesttablecapacity where clustername = 'corp_pgs' order by usedandremaining asc;")
-        rows9 = cursor.fetchall()
-        LTCcorppgs.sendfunc(rows9)
-
-        cursor.execute("select schemaorremaining, usedandremaining from clustermetrics.lateststaleschema where clustername = 'corp_pgs' order by usedandremaining asc;")
-        rows10 = cursor.fetchall()
-        Schemascorppgs.sendfunc(rows10)
-
-        cursor.execute("select * from clustermetrics.summary_cluster_stats where clustername = 'corp_pgs' and cast(dateentered as date) between '2019-04-08' and '2019-06-17' order by dateentered asc;")
-        cur = connection.cursor()
-        sql = "COPY (select * from clustermetrics.summary_cluster_stats where clustername = 'corp_pgs' and cast(dateentered as date) between '2019-04-08' and '2019-06-17' order by dateentered asc) TO STDOUT WITH DELIMITER ',' CSV HEADER"
-        with open("capacitydate_corppgs.csv", "w") as file:
-            cur.copy_expert(sql, file)
+        CDuniccp.sendfunc(rows5)
 
     except (Exception, psycopg2.Error) as error :
         print ("Error while connecting to PostgreSQL", error)
@@ -141,41 +110,32 @@ sender_email = "ENTER SENDER'S EMAIL HERE"
 receiver_email = "ENTER RECEIVER'S EMAIL HERE"
 password = "ENTER PASSWORD HERE"
 
+with open('subject.csv', 'r') as f:
+    data = list(reader(f)) 
+subject = [i[0] for i in data [1::]]
+
 msg = MIMEMultipart('related')
-msg['Subject'] = 'Weekly RDS Capacity/Performance Summary 6/9/2019'
+msg['Subject'] = 'Weekly RDS Capacity / Performance Summary ' + subject[0] 
 msg['From'] = sender_email
 msg['To'] = receiver_email
 msg.preamble = 'This is a multi-part message in MIME format.'
 
 with open('htmltable_uniccp.csv', 'r') as f:
     data = list(reader(f)) 
-    
 change2week_uniccp = [i[0] for i in data [1::]]
-
 capacitydate_uniccp = [i[1] for i in data [1::]]
-
-with open('htmltable_invsr.csv', 'r') as f:
-    data = list(reader(f)) 
-    
-change2week_invsr = [j[0] for j in data [1::]]
-
-capacitydate_invsr = [j[1] for j in data [1::]]
-
-with open('htmltable_corppgs.csv', 'r') as f:
-    data = list(reader(f)) 
-    
-change2week_corppgs = [l[0] for l in data [1::]]
-
-capacitydate_corppgs = [l[1] for l in data [1::]]
 
 with open('sidebar.csv', 'r') as f:
     data = list(reader(f)) 
-    
 uniccp = [k[1] for k in data]
 
-invsr = [k[4] for k in data]
+with open('week.csv', 'r') as f:
+    data = list(reader(f)) 
+week = [l[0] for l in data [1::]]
 
-corppgs = [k[2] for k in data]
+with open('capacity.csv', 'r') as f:
+    data = list(reader(f)) 
+capacity1 = [m[0] for m in data [1::]]
 
 html_string = '''
 
@@ -323,8 +283,8 @@ html_string = '''
     </style>
 
 </head>
-<body width="100%" style="margin: 0; padding: 0 !important; mso-line-height-rule: exactly; background-color: #D6D6D6;">
-    <center style="width: 100%; background-color: #D6D6D6;">
+<body width="100%" style="margin: 0; padding: 0 !important; mso-line-height-rule: exactly; background-color: #EBEBEB;">
+    <center style="width: 100%; background-color: #EBEBEB;">
     <!--[if mso | IE]>
     <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #EBEBEB;">
     <tr>
@@ -369,11 +329,13 @@ html_string = '''
                                         <tr>
                                         <td width="960">
                                         <![endif]-->
-                                        <table role="presentation" border="0" cellpadding="5" cellspacing="0" width="100%" style="max-width: 960px; margin: auto;">
+                                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 960px; margin: auto;">
                                             <tr>
                                                 <td width="15%"><img src="cid:image5" alt="alt_text" border="0" width="150" style="width: 100%; height: auto; font-family: sans-serif; font-size: 15px; line-height: 15px;"></td>
                                                 <td width="60%"><img src="cid:image6" alt="alt_text" border="0" width="680"  align="center" style="width: 100%; height: auto; font-family: sans-serif; font-size: 15px; line-height: 15px;"></td>
-                                                <td width="15%" style="text-align: center; color: #ffffff;"><p style="font-family: Trebuchet MS; font-size: 16px;">Week</p><p style="font-family: Trebuchet MS; font-size: 20px; font-weight: bold;">6/9/2019</p></td>
+                                                <td width="7%" style="text-align: right; color: #ffffff;"><p style="font-family: Trebuchet MS; font-size: 13px; font-weight: bold;">$week1</p></td>
+                                                <td width="1%" style="text-align: center; color: #ffffff;"><p style="font-family: Trebuchet MS; font-size: 10px; font-weight: bold;">-</p></td>
+                                                <td width="7%" style="text-align: left; color: #ffffff;"><p style="font-family: Trebuchet MS; font-size: 13px; font-weight: bold;">$week2</p></td>
                                             </tr>
                                         </table>
                                         <!--[if mso]>
@@ -404,54 +366,46 @@ html_string = '''
                         <tr>
                         <td valign="top" width="980">
                         <![endif]-->
-                        <table align="center" role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:980px;">
+                        <table align="center" role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" bgcolor="#D7C7C7" style="max-width:980px; background-color:#D7C7C7;">
                             <tr>
-                                <td width="200" rowspan="1" align="left" valign="top" style="padding: 25px 0 0 0; width: 200px;background-color: #B17877;" bgcolor="#B17877">
-                                    <!--[if mso]>
-                                    <table align="center" role="presentation" border="0" cellspacing="0" cellpadding="0" width="200">
-                                    <tr>
-                                    <td valign="top" width="200">
-                                    <![endif]-->
-                                    <table align="center" role="presentation" border="0" cellpadding="5" cellspacing="0" width="100%" style="max-width:200px; background-color: #B17877;">
-                                        <tr>
-                                            <td valign="middle" align="center"><p style="color:#ffffff; font-size: 12px;"><b>Notes</b></p></td>
-                                        </tr>
-                                        
-                                    </table>
-                                    <!--[if mso]>
-                                    </td>
-                                    </tr>
-                                    </table>
-                                    <![endif]-->
-                                </td>
-                                <td width="10">&nbsp;</td>
-                                <td align="left" valign="top" style="font-size:0; padding: 25px 0 15px 0;">
+                                <td align="center" valign="top" style="font-size:0; padding: 15px 0 15px 0;">
                                     <!-- 1st row -->
                                     <!--[if mso]>
-                                    <table role="presentation" border="0" cellspacing="0" cellpadding="0" width="770">
+                                    <table role="presentation" border="0" cellspacing="0" cellpadding="0" width="960">
                                     <tr>
-                                    <td valign="top" width="770">
+                                    <td valign="top" width="960">
                                     <![endif]-->
-                                    <div style="display:inline-block; margin: 0; width:100%; min-width:200px; max-width:770px; vertical-align:top;" class="stack-column">
-                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-radius: 20px; max-width: 760px; box-shadow: 3px 3px 10px grey;">
-                                            <tr><td style="font-size:0;"><img src="cid:imagea" width="770" height="" border="0" alt="alt_text" style="width: 100%; max-width: 770px; height: auto; background: #ffffff; font-family: sans-serif; font-size: 15px; line-height: 5px; color: #555555; border-radius: 20px 20px 0 0;" class="center-on-narrow"></td></tr>
+                                    <div style="display:inline-block; margin: 0; width:100%; min-width:200px; max-width:960px; vertical-align:top;" class="stack-column">
+                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-radius: 20px; max-width: 960px; box-shadow: 3px 3px 10px #D7C7C7;">
+                                            <tr><td style="font-size:0;"><img src="cid:imagea" width="960" height="" border="0" alt="alt_text" style="width: 100%; max-width: 960px; height: auto; background: #ffffff; font-family: sans-serif; font-size: 15px; line-height: 5px; color: #555555; border-radius: 20px 20px 0 0;" class="center-on-narrow"></td></tr>
                                             <tr>
                                                 <td style="padding: 0px 5px; background: #ffffff; height: 230px;">
                                                     <div style="display: inline-block;">
                                                     <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="font-size: 14px; text-align: left;" bgcolor="">
                                                         <tr>
                                                             <td style="font-family: sans-serif; font-size: 16px; color: #555555; font-weight: normal;" class="stack-column-center">
-                                                                <p style="margin: 0;" align="center">&nbsp;&nbsp;<b>Capacity/Performance Summary</b></p>
+                                                                <p style="margin: 0;" align="center">&nbsp;&nbsp;<b>Capacity / Performance Summary</b></p>
                                                             </td>
                                                         </tr>
                                                         <tr><td>&nbsp;</td></tr>
                                                         <tr>
                                                             <td bgcolor="#ffffff">
-                                                                <table align="right" role="presentation" border="0" cellpadding="0" cellspacing="0" style="max-width: 760px;">
+                                                                <table align="right" role="presentation" border="0" cellpadding="0" cellspacing="0" style="max-width: 950px;">
                                                                     <tr>
                                                                         <td width="100">
                                                                             <table align="right" role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;max-width: 100px;">
-                                                                                <tr><td align="right"><a href="#link1" style="font-size: 14px;" class="center-on-narrow">uni-ccp</a>
+                                                                                <tr><td align="right"><a href="#link2" style="font-size: 14px;" class="center-on-narrow"></a>
+                                                                                        <!--[if mso]>
+                                                                                        <p>&nbsp;</p>
+                                                                                        <p>&nbsp;</p>
+                                                                                        <p>&nbsp;</p>
+                                                                                        <![endif]-->
+                                                                                    </td></tr>
+                                                                                <tr><td>&nbsp;</td></tr>
+                                                                                <tr><td>&nbsp;</td></tr>
+                                                                                <tr><td>&nbsp;</td></tr>
+                                                                                <tr><td>&nbsp;</td></tr>
+                                                                                <tr><td align="right"><a href="#link1" style="font-size: 14px;">prod-analytics</a>
                                                                                         <!--[if mso]>
                                                                                         <a href="#link4"><p align="right" style="color:#0000FF; font-size: 12px; text-decoration:underline;">View Info</p></a>
                                                                                         <![endif]-->
@@ -460,19 +414,8 @@ html_string = '''
                                                                                 <tr><td>&nbsp;</td></tr>
                                                                                 <tr><td>&nbsp;</td></tr>
                                                                                 <tr><td>&nbsp;</td></tr>
-                                                                                <tr><td align="right"><a href="#link2" style="font-size: 14px;">inv-sr</a>
-                                                                                        <!--[if mso]>
-                                                                                        <a href="#link5"><p align="right" style="color:#0000FF; font-size: 12px; text-decoration:underline;">View Info</p></a>
-                                                                                        <![endif]-->
-                                                                                    </td></tr>
-                                                                                <tr><td>&nbsp;</td></tr>
-                                                                                <tr><td>&nbsp;</td></tr>
-                                                                                <tr><td>&nbsp;</td></tr>
-                                                                                <tr><td>&nbsp;</td></tr>
-                                                                                <tr><td align="right"><a href="#link3" style="font-size: 14px;">corp-pgs</a>
-                                                                                        <!--[if mso]>
-                                                                                        <a href="#link6"><p align="right" style="color:#0000FF; font-size: 12px; text-decoration:underline;">View Info</p></a>
-                                                                                        <![endif]-->
+                                                                                <tr><td align="right"><a href="#link3" style="font-size: 14px;"></a>
+
                                                                                     </td></tr>
                                                                                 <tr><td>&nbsp;</td></tr>
                                                                                 <tr><td>&nbsp;</td></tr>
@@ -480,8 +423,8 @@ html_string = '''
                                                                                 <tr><td>&nbsp;</td></tr>
                                                                             </table>
                                                                         </td>
-                                                                        <td width="660" style="padding:0 0 0 0;">
-                                                                            <img src="cid:image4" width="650" height="" alt="Cluster stats" border="0" style="display: block; width: 100%; max-width: 650px; height: auto; background: #FFFFFF; font-family: sans-serif; font-size: 15px; line-height: 15px; color: #555555; margin: 0 0 0 0; display: block;" class="g-img">
+                                                                        <td width="850" style="padding:0 0 0 0;">
+                                                                            <img src="cid:image4" width="840" height="" alt="Cluster stats" border="0" style="display: block; width: 100%; max-width: 820px; height: auto; background: #FFFFFF; font-family: sans-serif; font-size: 15px; line-height: 15px; color: #555555; margin: 0 0 0 0; display: block;" class="g-img">
                                                                         </td>
                                                                     </tr>
                                                                 </table>
@@ -491,7 +434,7 @@ html_string = '''
                                                     </div>
                                                 </td>
                                             </tr>
-                                            <tr><td style="font-size:0;"><img src="cid:imageb" width="770" height="" border="0" alt="alt_text" style="width: 100%; max-width: 770px; height: auto; background: #ffffff; font-family: sans-serif; font-size: 15px; line-height: 5px; color: #555555;border-radius: 0 0 20px 20px;" class="center-on-narrow"></td>    
+                                            <tr><td style="font-size:0;"><img src="cid:imageb" width="960" height="" border="0" alt="alt_text" style="width: 100%; max-width: 960px; height: auto; background: #ffffff; font-family: sans-serif; font-size: 15px; line-height: 5px; color: #555555;border-radius: 0 0 20px 20px;" class="center-on-narrow"></td>    
                                             </tr>
                                         </table>
                                     </div>
@@ -510,7 +453,7 @@ html_string = '''
                         <![endif]-->
                     </td>
                 </tr>
-                <tr><td bgcolor="#AEAEAE" style="font-size:6px;">&nbsp;</td></tr>
+                <tr><td bgcolor="#796381" style="font-size:10px;">&nbsp;</td></tr>
                 <tr>
                     <td>
                         <!--[if mso]>
@@ -518,60 +461,58 @@ html_string = '''
                         <tr>
                         <td valign="top" width="980">
                         <![endif]-->
-                        <table align="center" role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:980px;">
+                        <table align="center" role="presentation" border="0" cellpadding="0" bgcolor="#D7C7C7" cellspacing="0" width="100%" style="max-width:980px; background-color:#D7C7C7;">
                             <tr>
-                                <td width="200" rowspan="2" align="left" valign="top" style=" width: 200px;background-color: #B17877;" bgcolor="#B17877">
+                                <td width="490" align="left" valign="top" style="width:50%; background-color:#B17877;" bgcolor="#B17877">
                                     <!--[if mso]>
-                                    <table align="center" role="presentation" border="0" cellspacing="0" cellpadding="0" width="200">
+                                    <table align="center" role="presentation" border="0" cellspacing="0" cellpadding="0" width="480">
                                     <tr>
-                                    <td valign="top" width="200">
+                                    <td valign="top" width="480">
                                     <![endif]-->
-                                    <table align="center" role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:200px; background-color: #B17877;">
+                                    <table align="center" role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:480px; background-color: #B17877;">
                                         <tr>
-                                            <td width="50%" valign="middle" style="padding: 5px 0px 5px 10px;"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFIAAAAgCAYAAACBxi9RAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAApcSURBVGhD7ZrpU5RXFsbnHxnNuEQTF1xRwBXCjsq+7/vS3ex0s9PQoCytNCAICAERXAA1VUlMnEnVLDU10dRk/qRnnufKS7HFAj8hyYdT/fZ97z3vvb/7nHPuS/Onb1xO7MReOd/bs4YWPHG6N9liYyteqd+GcXvdtg1SYF44XZivbUa/vQvV9mGU186grHZ21SrqZ+F2z2GiYwTPmzvx0tW4pa+9aNsCKQUu1DXD6+hCWXE/QnKH4F88hwvV3+JCzXerFlj/PZJ6/wGb9yd4bj/FZMcwlhrbfhfq/E2Qa8PzJUH22roRSoB+WaM4kPEAhwvncbz6NY7X/LBqp+p/RGT/WyQO/4os38+oGniDmbZB+nFt8rnXbEuQCuFFVyuWme8Unsv83ljaZwDuX7EPgYwf+Z+xzKG3GO+c4Ea4jM+lhkYsuZpXwe4lWwdSIfy0vgl9lR40Nk/B070AX+ckHrbeQ2W5bxXidkGm+d6hv20aw1VutFd0o9Y2gPbWaUy2D3GTWtZN5FO3dSAVwu3lPQjNH0F067fIHPwPCgb/ifKBv+JmzcKOQcYP/oKk+ieIyBtCQM4ILhRMIsHzBg76m2r3rZuIZa+cDViur8PTmmo8q63hnBrWtb9sqDefi3W15p5M12pTn7V9n9DH8xUfJq2stK81+VO7bIl+LL9W2wuavr9gP93Tp9rXzlm2CWRJkRdHsidwrfU14ob++x4Ic15gwzc7BnmLIP2rl1ZTwpG8aYT3/B3pQ79gtOvhuom8f34DHpaXoS72FkrCw1ARGYHu9HSz4IWqSjTFx+NORgZaEhPgiI6GLz8fd3NzYIuKMm1PqquMj4nSEtTTRzF92KOjcI991L7A+864WDNWVnvzJsaKCw3AseJiVLKtIioSXWlpZgNkPRnp6EhJMW12PqctOdm0b5z7JpBFW4CMI8iAjwR5jiA/2wAyzYCcXjcR2TMqqCkhAQmBgSiPCEcSP4P9Thu4U7SYc+eQGBCAzKtXcfXECSQGBqEkLAw3/f1xhd+HC/PNIutv3ULa5csEHIkE9k+5fMm0z3MzqmKikR8SgivHjyPE7xQGsrMxXVGOnOvXkRwUhMKvvkLk2XPoy87CnMOOvJBghJ85gwKOieLzg/388IAbtVGVuwqkFqsFCOZgXi7KCPPwvs/gzcnBZFkprp88aSD3UKXxBHTpy2NwpyTDRaWeOHgInvRULK6oqJ3KGS7IRxHB+B89SigOo+xJQmhPSsTFL75A+pUr3KBydKWmGrCtiYlUZpHZJIFV37Qrl81zO9lHyj9x4AB6szJ3N0jlIAGspaJaudiC4GAc/PN+9GZm4uEKyKKwUKOs4tBQBJ/0M2oaKSzE6cOfw52abEB6c7LhjI1lSCYjl0D8Dh3CrN1unjFrt1F1IVTdWfQRiJ5ZGhaOoGPHMFpUZFJA7MWLVKsfhpg6BDKWitdzlGZOHjzIDUvb3SBnbRUGkEK3NzMDlVTAISpSedFSpHKYilB5RATCT5/GXKUDYyXFOPv5e5AmHLkBCtG73JSKyEgDcsZmM4psT04yarSx/RGhqk2qFUipUYASqXqp0pefZ0AmM4XoOVLiJwHyPpUVQTjZ166ZsKqKjqEi95nFj/O7QCq8PgRS466dOGnuz3BjysLDGfYHMVRQ8D7Pnj+PI/v2G6V2pqbga/ZpZioR3G4Ckr/QU6dMvnxAvwKZEnTp0wI5UVqKhIsBJuxUIfOpLAFqjI8ziwojuMqYGANShSSayV8L1L3AL79kZU0xIShYsRcuoObGDWRT3doAQbqXm4tbDNO4gEBTcIqZJgRHFTuJ4FJoJQQfyiKktKA0kHXtKjKYSx/zOcrf/keOmBy8q0Hq7Kg8pHBsTIg3i6xjvlTICZiONAPMfzqu6J6LgFXpZxnOqsajRYWmYKkwOHjsaWbxuMP8qsKjHDtFyP1ZWRhhv/s0hf54SYnZGBU0jdFxqYXjBE6+3VRtB8frWlGhY5M2buOr7q4CqV0WiEcEo4IiYDob6hAssxanfoKuPioOyyv3VDh0T30sH2qzDvbyYQ7hvFY/67uul/ipMUoH8q029dPzdf7UtXxpQ/W5ce67CqQWpYlbEK12TVwHcpkgGXjsq+/zlZUGvhZu9dfbiPyo8Fhw5U9jdF/f1f5iBaLGW9eCaD1LfaznrLVdD3KaZ7peVmi9icjmHDazuGFWzzvMS2p7wDDXQvT2cod5b5B5z8cQVVhb0HRvgPlM9jXDWa+BEwzhqYqy1VfF4YI8A1pq7uMJ4THPmTo6edJScZfpQ8ewGebIeSpQx6kutnfwSKY5SLXysXbuuwrkMM9tHuY3VdceTvz2SnXsZNXWYqeY53RkURgKUjf7CJQqtRYpmFKeh3lNIKbpRwoSSC/fYARcatZ3d3KiOVKpfxVzsjZRaqxmjlQuVNGSqqVWPbeLPl3M15qb2jfOfVeB1EIFQTuuz9tUp0C28T1aULWgx1SRcls/i42UIzD6LtU0sRhJlR5WXClYfqQygetT0WEREQj5qSEwKVcgy3l2VbtA2li1BVhjrZQh/1JiBzdU1xvVKNtVIKWiprhYA8hFKFKaAclznpuLuF9YgBkqxQKpxVljxxnyVZERJqepQgusVDzKMVKwrp1UlF4blSrsfP3cCmQpD+eah54lNev5Mm2yXke3gijbZYrMo5p4FuSimuLizGI0cb0b3+PxRPnqORcrWAIj4LovsL1UoGDrWuAEQdDaqWYB0utgD1WtQiY/CtOtQDoIWLlR49cWp08KpJTiZe7TAvSK2EWoCl3lP4W2Fq7cJZj9vK/w13eNaSZ4bYDGmvClKZwVjgpR5VQpzSo22hwpXiDtDGcLZN2NGCyuALTMAqk8uW2QJUUDOJo9vgbkr4jnZ1D9q48CebF6cYu/R77DaOfmv0cKihXOKiJSqPKbAEtNOoxLZeZwzFDuTkszqlSYq5pLjTrG6MCsv1MKngCpXX51refIv/yYqs3+UrfOoc8J9a42kv3Xzkv9NdZEyJr2tbYOpH5quG3zIKpgBOEt3yHF9xb5g/9Gdd8PSKqa2zHIRN875DvnkZDvw/ms+ziV/xA3PX9DzcAbzLZ6101EppCUQnQtIDpIaxFSlBYtU2gKjIrII7vdVPEnbBNwjVN/gVZfq2Jr8fIr/9azNp4d5VPqtw78Vj/LNFbP3Nhu2TqQMv1m463sQnvTA9zxzGC4cwxTLd6P+82GyvO2T+N+tRudti447b3wtIxjsm1wb/9mY5l+8XvuasViUyteNjZh2dkIV2kf/pIxtiOQmVT0uHsCL1wu7jh9NjRh0dWyJ/9xYEuQG025c8DuQXSeD0czx1g8xj4A8mcksDilD71FrUK47e5v5pW9ZNsCqdw5X8eQd3SioqQPEblDOF88hzPV3+NMzetV869nLu39Fxzen9DTs4DJjiEsUdV/gFxjgrHM8Jyra0G/owu1jiFU1M6gom521RwNs+hyP8JExzCe6X9/mBa28rUXbdsgLTMVsKERCw1tmHN2brJnTe7fFUDLdgzyD9vKnPg/Ev9L+PCLCjQAAAAASUVORK5CYII=" alt=""/></td>
-                                            <td valign="middle"><p style="color:#ffffff; font-size: 14px;"><b>uni_ccp</b></p></td>
-                                        </tr>
-                                        <tr>
-                                            <td colspan="2" style="color:#ffffff;padding: 10px 10px; font-size: 14px;">
-                                                <p>
-                                                    <strong>Version:</strong>
-                                                    <span>$suniccpv</span>
-                                                  </p>
-                                 
-                                                  <p>
-                                                     <strong>Role:</strong>
-                                                     <span>$suniccpr</span>
-                                                  </p>
-                                 
-                                                  <p>
-                                                     <strong>Type:</strong>
-                                                     <span>ds2.xlarge</span>
-                                                  </p>
-                                 
-                                                  <p>
-                                                     <strong>Nodes:</strong>
-                                                     <span>$suniccpn</span>
-                                                  </p>
-                                 
-                                                  <p>
-                                                     <strong>Storage (TB):</strong>
-                                                     <span>$suniccps</span>
-                                                  </p>
-                                 
-                                                  <p>
-                                                     <strong>Available:</strong>
-                                                     <span>$suniccpa</span>
-                                                  </p>
-                                 
-                                                  <p>
-                                                     <strong>Availability:</strong>
-                                                     <span>$suniccpay</span>
-                                                  </p>
-                                 
-                                                  <p>
-                                                     <strong>Recent Snapshots:</strong>
-                                                     <span>$suniccprs</span>
-                                                  </p>
+                                            <td width="30%" align="center" valign="top" style="padding: 15px 0px 5px 5px;"><img src="data:image/png;base64,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" alt=""/></td>
+                                            <td valign="top" width="25%" align="left">
+                                                <table align="center" role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:143px; background-color: #B17877; line-height:12px;">
+                                                    <tr><td><p style="color:#ffffff; font-size:17px; line-height:15px;"><u><b>prod-analytics</b></u></p></td></tr>
+                                                    <!--[if mso]>
+                                                    <p>&nbsp;</p>
+                                                    <![endif]-->
+                                                    <tr>
+                                                        <td style="font-size: 12px; color: #FFFFFF">
+                                                            <p><strong>Version:</strong>
+                                                                <span>$suniccpv</span></p>                     
+                                                            <p><strong>Role:</strong>
+                                                                <span>$suniccpr</span></p>
+                                                            <p><strong>Type:</strong>
+                                                                <span>ds2.xlarge</span></p>
+                                                            <p><strong>Nodes:</strong>
+                                                                <span>$suniccpn</span></p>
+                                                            <p><strong>Last Cluster Reboot:</strong></p>    
+                                                        </td>
+                                                    </tr>
+                                                </table>     
+                                            </td>
+                                            <td width="45%" valign="top" align="left">
+                                                <table align="center" role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:183px; background-color: #B17877; line-height:12px;">
+                                                    <tr><td><p style="color:#B17877; font-size:17px; line-height:15px;"><u><b>uni_ccp</b></u></p></td></tr>
+                                                    <!--[if mso]>
+                                                    <p>&nbsp;</p>
+                                                    <![endif]-->
+                                                    <tr>
+                                                        <td style="font-size:12px; color: #FFFFFF">  
+                                                            <p><strong>Storage (TB):</strong>
+                                                                <span>$suniccps</span></p>
+                                                            <p><strong>Available:</strong>
+                                                                <span>$suniccpa</span></p>
+                                                            <p><strong>Availability:</strong>
+                                                                <span>$suniccpay</span></p>
+                                                            <p><strong>Recent Snapshots:</strong>
+                                                                <span>$suniccprs</span></p>
+                                                            <p><span>$suniccplcr</span></p>
+                                                        </td>        
+                                                    </tr> 
+                                                </table>                 
                                             </td>
                                         </tr>
                                     </table>
@@ -581,154 +522,116 @@ html_string = '''
                                     </table>
                                     <![endif]-->
                                 </td>
-                                <td width="10">&nbsp;</td>
                                 <a id="link1">
                                     <!--[if mso]>
                                     <a href="link4" name="link4" jumpthis="link4"></a>
                                     <![endif]-->
                                 </a>
-                                <td align="left" valign="top" style="font-size:0; padding: 25px 0 15px 0;">
-                                    <!-- 1st row -->
+                                <td width="490" align="center" valign="center" style="width:50%; background-color:#B17877; padding: 15 0 5px 2px;" bgcolor="#B17877">
                                     <!--[if mso]>
-                                    <table role="presentation" border="0" cellspacing="0" cellpadding="0" width="770">
+                                    <table role="presentation" border="0" cellspacing="0" cellpadding="0" width="490">
                                     <tr>
-                                    <td valign="top" width="770">
+                                    <td valign="top" width="490">
                                     <![endif]-->
-                                    <div style="display:inline-block; margin: 0; width:100%; min-width:200px; max-width:770px; vertical-align:top;" class="stack-column">
-                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-radius: 20px; max-width: 760px; box-shadow: 3px 3px 10px grey;">
-                                            <tr><td style="font-size:0;"><img src="cid:imagea" width="770" height="" border="0" alt="alt_text" style="width: 100%; max-width: 770px; height: auto; background: #d6d6d6; font-family: sans-serif; font-size: 15px; line-height: 5px; color: #555555; border-radius: 20px 20px 0 0;" class="center-on-narrow"></td></tr>
-                                            <tr>
-                                                <td style="padding: 0px 5px; background: #ffffff; height: 240px;">
-                                                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="font-size: 14px; text-align: left;" bgcolor="">
-                                                        <tr>
-                                                            <td style="font-family: sans-serif; font-size: 16px; color: #294074; font-weight: normal;" class="stack-column-center">
-                                                                <p style="margin: 0;">&nbsp;&nbsp;<b><i>Capacity-4/17-6/17/2019</i></b><a href="#linka">
-                                                                    <img src = "cid:image7" width="20" height="" style="width: 100%; max-width: 20px; height: auto;"></a></p>
-                                                            </td>
-                                                        </tr>
-                                                        <tr><td>&nbsp;</td></tr>
-                                                        <tr>
-                                                            <td>
-                                                                <img src="cid:image11" width="730" height="240" border="0" alt="alt_text" style="width: 100%; max-width: 730px; height: 240px; background: #dddddd; font-family: sans-serif; font-size: 15px; line-height: 5px; color: #555555;" class="center-on-narrow">
-                                                            </td>
-                                                        </tr>
-                                                    </table>
-                                                </td>
-                                            </tr>
-                                            <tr><td style="font-size:0;"><img src="cid:imageb" width="770" height="" border="0" alt="alt_text" style="width: 100%; max-width: 770px; height: auto; background: #d6d6d6; font-family: sans-serif; font-size: 15px; line-height: 5px; color: #555555;border-radius: 0 0 20px 20px;" class="center-on-narrow"></td>    
-                                            </tr>
+                                    <div padding="20" style="padding:20px;">
+                                        <table align="center" role="presentation" cellspacing="0" cellpadding="0" width="100%" height="180" style="border-collapse:separate !important; border:1px solid #FFFFFF; border-radius:20px; font-size:12px; max-width:360px; text-align:center; color:#FFFFFF; background-color:#BA8786">
+                                            <tbody style="border:2px solid #FFFFFF;">
+                                                <tr> 
+                                                    <th style="height: 20px; text-align:left; padding-left:12px; border:1px solid #FFFFFF; border-top-left-radius: 20px;">Metric</th> 
+                                                    <th style="border:1px solid #FFFFFF;">Change (2 Week)</th> 
+                                                    <th style="border:1px solid #FFFFFF; border-top-right-radius: 20px;">Capacity Date</th>
+                                                </tr> 
+
+                                                <tr> 
+                                                    <td align="center" style="font-weight: 400; height: 20px; text-align:left; padding-left:12px; border:1px solid #FFFFFF;"><b>Tables</b></td>
+                                                    <td style="border:1px solid #FFFFFF;">$t1a</td>
+                                                    <td style="border:1px solid #FFFFFF;">$t1b</td>
+                                                </tr> 
+
+                                                <tr> 
+                                                    <td align="center" style="font-weight: 400; height: 20px; text-align:left; padding-left:12px; border:1px solid #FFFFFF;"><b>Storage</b></td> 
+                                                    <td style="border:1px solid #FFFFFF;">$t1c</td> 
+                                                    <td style="border:1px solid #FFFFFF;">$t1d</td>
+                                                </tr> 
+
+                                                <tr> 
+                                                    <td align="center" style="font-weight: 400; height: 20px; text-align:left; padding-left:12px; border:1px solid #FFFFFF;"><b>CPU</b></td> 
+                                                    <td style="border:1px solid #FFFFFF;">$t1e</td> 
+                                                    <td style="border:1px solid #FFFFFF;">$t1f</td>
+                                                </tr> 
+
+                                                <tr> 
+                                                    <td align="center" style="font-weight: 400;height: 25px; text-align:left; padding-left:12px; border:1px solid #FFFFFF; border-bottom-left-radius: 20px;"><b>Connections</b></td> 
+                                                    <td style="border:1px solid #FFFFFF;">$t1g</td> 
+                                                    <td style="border:1px solid #FFFFFF; border-bottom-right-radius: 20px;">$t1h</td>
+                                                </tr>
+                                            </tbody>
                                         </table>
-                                    </div>
+                                    </div>        
                                     <!--[if mso]>
                                     </td>
                                     </tr>
                                     </table>
-                                    <![endif]-->
+                                    <![endif]-->      
                                 </td>
                             </tr>
+                        </table>    
+                        <!--[if mso]>
+                        </td>
+                        </tr>
+                        </table>
+
+                        <table role="presentation" border="0" cellspacing="0" cellpadding="0" width="980">
+                        <tr>
+                        <td valign="top" width="980">
+                        <![endif]-->      
+                        <table align="center" role="presentation" border="0" cellpadding="0" bgcolor="#D7C7C7" cellspacing="0" width="100%" style="max-width:980px; background-color:#D7C7C7;">    
                             <tr>
-                                <td width="10">&nbsp;</td>
-                                <td align="center" valign="top" style="font-size:0; padding: 0 0 5px 2px;">
-                                    <!--[if mso]>
-                                    <table role="presentation" border="0" cellspacing="0" cellpadding="0" width="770">
-                                    <tr>
-                                    <td valign="top" width="380">
-                                    <![endif]-->
-                                    <div style="display:inline-block; width:100%; min-width:200px; max-width:378px; margin-right: 5px; vertical-align:top; padding: 0 0 15px 0;" class="stack-column">
-                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-radius: 20px;box-shadow: 3px 3px 10px grey;">
-                                            <tr><td><img src="cid:imagec" width="378" height="" border="0" alt="alt_text" style="width: 100%; max-width: 378px; height: auto; background: #ffffff; font-family: sans-serif; font-size: 0;color: #555555;border-radius: 20px 20px 0 0;"></td></tr>
-                                            <tr>
-                                                <td align="center" style="background: #ffffff; height: 260px">
-                                                    <table align="center" role="presentation" cellspacing="0" cellpadding="0" border="1" width="100%" height="220" style="border-collapse: collapse; border:1px solid #FFFFFF; font-size: 12px; max-width:360px; text-align: center;">
-                                                        <tbody>
-                                                            <tr> 
-                                                                <th style="background-color: #B1C1D8; height: 30px;">Metric</th> 
-                                                                <th style="background-color: #B1C1D8;">Change (2 Week)</th> 
-                                                                <th style="background-color: #B1C1D8;">Capacity Date</th>
-                                                            </tr> 
+                                <td align="center" valign="top" style="font-size:0; padding: 0px 0 5px 0;">
+                                    <div style="display:inline-block; margin: 0; width:100%; min-width:200px; max-width:980px; height:120px; vertical-align:top; background-color:#B17877" class="stack-column">
 
-                                                            <tr> 
-                                                                <td align="center" style="background-color: #B1C1D8;font-weight: 400;height: 30px;"><i><b>Tables</b></i></td>
-                                                                <td style="background-color: #e9edf4">$t1a</td>
-                                                                <td style="background-color: #e9edf4">$t1b</td>
-                                                            </tr> 
-
-                                                            <tr> 
-                                                                <td align="center" style="background-color: #B1C1D8;font-weight: 400;height: 30px;color: red;"><i><b>Storage</b></i></td> 
-                                                                <td style="background-color: #e9edf4; color: red;">$t1c</td> 
-                                                                <td style="background-color: #e9edf4; color: red;">$t1d</td>
-                                                            </tr> 
-
-                                                            <tr> 
-                                                                <td align="center" style="background-color: #B1C1D8;font-weight: 400;height: 30px;"><i><b>CPU</b></i></td> 
-                                                                <td style="background-color: #e9edf4">$t1e</td> 
-                                                                <td style="background-color: #e9edf4">$t1f</td>
-                                                            </tr> 
-
-                                                            <tr> 
-                                                                <td align="center" style="background-color: #B1C1D8;font-weight: 400;height: 30px;"><i><b>Connections</b></i></td> 
-                                                                <td style="background-color: #e9edf4">$t1g</td> 
-                                                                <td style="background-color: #e9edf4">$t1h</td>
+                                    <!--[if gte mso 9]>
+                                    <v:image xmlns:v="urn:schemas-microsoft-com:vml" fill="true" stroke="false" style="border: 0; display: inline-block; width: 980px; height: 130px;" src="cid:imaged"/>
+                                    <v:rect xmlns:v="urn:schemas-microsoft-com:vml" fill="true" stroke="false" style="border: 0; display: inline-block; position: absolute; width: 980px; height: 430px;">
+                                    <v:fill opacity="0%" color="#B17877" />
+                                        <table role="presentation" border="0" cellspacing="0" cellpadding="0" width="960" style="width:100%;">
+                                        <tr>
+                                        <td valign="top" align="center" width="960">
+                                        <![endif]-->
+                                        <div style="display:inline-block; width:100%; min-width:200px; max-width:960px; vertical-align:top;" class="stack-column">
+                                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-radius: 20px; max-width: 960px; box-shadow: 3px 3px 10px #D7C7C7;">
+                                                <tr><td style="font-size:0;"><img src="cid:imagec" width="960" height="" border="0" alt="alt_text" style="width: 100%; max-width: 960px; height: auto; background: #d6d6d6; font-family: sans-serif; font-size: 15px; line-height: 5px; color: #555555; border-radius: 20px 20px 0 0;" class="center-on-narrow"></td></tr>
+                                                <tr>
+                                                    <td style="padding: 0px 5px; background: #ffffff; height: 240px;">
+                                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="font-size: 14px; text-align: left;" bgcolor="">
+                                                            <tr>
+                                                                <td style="font-family: sans-serif; font-size: 16px; color: #294074; font-weight: normal;" class="stack-column-center">
+                                                                    <p style="margin: 0;">&nbsp;&nbsp;<b><i>Capacity-$capacity</i></b><a href="#linka">
+                                                                        <img src = "cid:image7" width="20" height="" style="width: 100%; max-width: 20px; height: auto;"></a></p>
+                                                                </td>
                                                             </tr>
-                                                        </tbody>
-                                                    </table>
-                                                </td>
-                                            </tr>
-                                            <tr><td style="font-size:0; padding:0;"><img src="cid:imaged" width="378" height="" border="0" alt="alt_text" style="width: 100%; max-width: 378px; height: auto; background: #ffffff; font-family: sans-serif; font-size: 0; color: #555555;border-radius: 0 0 20px 20px;"></td></tr>
+                                                            <tr><td>&nbsp;</td></tr>
+                                                            <tr>
+                                                                <td align="center">
+                                                                    <img src="cid:image11" width="900" height="340" border="0" alt="alt_text" style="width: 100%; max-width: 900px; height: 340px; background: #dddddd; font-family: sans-serif; font-size: 15px; line-height: 5px; color: #555555;" class="center-on-narrow">
+                                                                </td>
+                                                            </tr>
+                                                        </table>
+                                                    </td>
+                                                </tr>
+                                                <tr><td style="font-size:0;"><img src="cid:imageb" width="960" height="" border="0" alt="alt_text" style="width: 100%; max-width: 960px; height: auto; background: #d6d6d6; font-family: sans-serif; font-size: 15px; line-height: 5px; color: #555555;border-radius: 0 0 20px 20px;" class="center-on-narrow"></td>    
+                                                </tr>
+                                            </table>
+                                        </div>
+                                        <!--[if mso]>                                     
+                                        </td>
+                                        </tr>
                                         </table>
+                                    </v:fill>
+                                    </v:rect>
+                                    </v:image>
+                                    <![endif]-->
                                     </div>
-                                    <!--[if mso]>
-                                    </td>
-                                    <td width="15"></td>
-                                    <td valign="top" width="380">
-                                    <![endif]-->
-                                    <div style="display:inline-block; width:100%; min-width:200px; max-width:378px; vertical-align:top; padding: 0 0 15px 0;" class="stack-column">
-                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-radius: 20px;box-shadow: 3px 3px 10px grey;">
-                                            <tr><td><img src="cid:imagec" width="378" height="" border="0" alt="alt_text" style="width: 100%; max-width: 378px; height: auto; background: #ffffff; font-family: sans-serif; font-size: 0;color: #555555;border-radius: 20px 20px 0 0;"></td></tr>
-                                            <tr valign="top">
-                                                <td style="background: #ffffff; height: 260px; padding: 0px 0px;">
-                                                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="font-size: 14px; text-align: left;" bgcolor="">
-                                                        <tr>
-                                                            <td style="font-family: sans-serif; font-size: 12px; color: #294074; font-weight: normal; padding-top: 5px;padding-bottom:5px">
-                                                                <p style="margin: 0;"><b>&nbsp;&nbsp;Top 3 Schemas-Used Space (GB)</b></p>
-                                                            </td>
-                                                        </tr>
-                                                        <tr>
-                                                            <td>
-                                                                <img src="cid:image8" width="375" height="" border="0" alt="alt_text" style="width: 100%; max-width: 375px; height: 55px; background: #fff;">
-                                                            </td>
-                                                        </tr>
-                                                        <tr>
-                                                            <td style="font-family: sans-serif; font-size: 12px; color: #294074; font-weight: normal; padding-top: 10px;padding-bottom: 5px;">
-                                                                <p style="margin: 0;"><b>&nbsp;&nbsp;Top 3 Schemas Table Count</b></p>
-                                                            </td>
-                                                        </tr>
-                                                        <tr>
-                                                            <td>
-                                                                <img src="cid:image9" width="375" height="" border="0" alt="alt_text" style="width: 100%; max-width: 375px; height: 55px; background: #fff;">
-                                                            </td>
-                                                        </tr>
-                                                        <tr>
-                                                            <td style="font-family: sans-serif; font-size: 12px; color: #294074; font-weight: normal; padding-top: 10px;padding-bottom: 5px;">
-                                                                <p style="margin: 0;"><b>&nbsp;&nbsp;Top 3 Stale Schemas</b></p>
-                                                            </td>
-                                                        </tr>
-                                                        <tr>
-                                                            <td>
-                                                                <img src="cid:image10" width="375" height="" border="0" alt="alt_text" style="width: 100%; max-width: 375px; height: 55px; background: #fff;">
-                                                            </td>
-                                                        </tr>
-                                                    </table>
-                                                </div>
-                                                </td>
-                                            </tr>
-                                            <tr><td style="font-size:0; padding:0;"><img src="cid:imaged" width="378" height="" border="0" alt="alt_text" style="width: 100%; max-width: 378px; height: auto; background: #ffffff; font-family: sans-serif; font-size: 0; color: #555555;border-radius: 0 0 20px 20px;"></td></tr>
-                                        </table>
-                                    <!--[if mso]>
-                                    </td>
-                                    </tr>
-                                    </table>
-                                    <![endif]-->
                                 </td>
                             </tr>
                         </table>
@@ -736,223 +639,61 @@ html_string = '''
                         </td>
                         </tr>
                         </table>
-                        <![endif]-->
-                    </td>
-                </tr>
-                <tr><td bgcolor="#AEAEAE" style="font-size:6px;">&nbsp;</td></tr>
-                <tr>
-                    <td>
-                        <!--[if mso]>
-                        <table align="center" role="presentation" border="0" cellspacing="0" cellpadding="0" width="980">
+
+                        <table role="presentation" border="0" cellspacing="0" cellpadding="0" width="980">
                         <tr>
                         <td valign="top" width="980">
-                        <![endif]-->
-                        <table align="center" role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:980px;">
-                                <tr>
-                                    <td width="200" rowspan="2" align="left" valign="top" style=" width: 200px;background-color: #B17877;" bgcolor="#B17877">
-                                        <!--[if mso]>
-                                        <table align="center" role="presentation" border="0" cellspacing="0" cellpadding="0" width="200">
-                                        <tr>
-                                        <td valign="top" width="200">
-                                        <![endif]-->
-                                        <table align="center" role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:200px; background-color: #B17877;">
-                                            <tr>
-                                                <td width="50%" valign="middle" style="padding: 5px 0px 5px 10px;"><img src="data:image/png;base64,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" alt=""/></td>
-                                                <td valign="middle"><p style="color:#ffffff; font-size: 14px;"><b>inv_sr</b></p></td>
-                                            </tr>
-                                            <tr>
-                                                <td colspan="2" style="color:#ffffff;padding: 10px 10px; font-size: 14px;">
-                                                    <p>
-                                                        <strong>Version:</strong>
-                                                        <span>$sinvsrv</span>
-                                                      </p>
-                                     
-                                                      <p>
-                                                         <strong>Role:</strong>
-                                                         <span>$sinvsrr</span>
-                                                      </p>
-                                     
-                                                      <p>
-                                                         <strong>Type:</strong>
-                                                         <span>ds2.xlarge</span>
-                                                      </p>
-                                     
-                                                      <p>
-                                                         <strong>Nodes:</strong>
-                                                         <span>$sinvsrn</span>
-                                                      </p>
-                                     
-                                                      <p>
-                                                         <strong>Storage (TB):</strong>
-                                                         <span>$sinvsrs</span>
-                                                      </p>
-                                     
-                                                      <p>
-                                                         <strong>Available:</strong>
-                                                         <span>$sinvsra</span>
-                                                      </p>
-                                     
-                                                      <p>
-                                                         <strong>Availability:</strong>
-                                                         <span>$sinvsray</span>
-                                                      </p>
-                                     
-                                                      <p>
-                                                         <strong>Recent Snapshots:</strong>
-                                                         <span>$sinvsrrs</span>
-                                                      </p>
-                                                </td>
-                                            </tr>
-                                        </table>
-                                        <!--[if mso]>
-                                        </td>
-                                        </tr>
-                                        </table>
-                                        <![endif]-->
-                                    </td>
-                                    <td width="10">&nbsp;</td>
-                                    <a id="link2">
-                                        <!--[if mso]>
-                                        <a href="link5" name="link5" jumpthis="link5"></a>
-                                        <![endif]-->
-                                    </a>
-                                    <td align="left" valign="top" style="font-size:0; padding: 25px 0 15px 0;">
-                                        <!-- 1st row -->
-                                        <!--[if mso]>
-                                        <table role="presentation" border="0" cellspacing="0" cellpadding="0" width="770">
-                                        <tr>
-                                        <td valign="top" width="770">
-                                        <![endif]-->
-                                        <div style="display:inline-block; margin: 0; width:100%; min-width:200px; max-width:770px; vertical-align:top;" class="stack-column">
-                                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-radius: 20px; max-width: 760px; box-shadow: 3px 3px 10px grey;">
-                                                <tr><td style="font-size:0;"><img src="cid:imagea" width="770" height="" border="0" alt="alt_text" style="width: 100%; max-width: 770px; height: auto; background: #d6d6d6; font-family: sans-serif; font-size: 15px; line-height: 5px; color: #555555; border-radius: 20px 20px 0 0;" class="center-on-narrow"></td></tr>
-                                                <tr>
-                                                    <td style="padding: 0px 5px; background: #ffffff; height: 240px;">
-                                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="font-size: 14px; text-align: left;" bgcolor="">
-                                                            <tr>
-                                                                <td style="font-family: sans-serif; font-size: 16px; color: #294074; font-weight: normal;" class="stack-column-center">
-                                                                    <p style="margin: 0;">&nbsp;&nbsp;<b><i>Capacity-4/17-6/17/2019</i></b><a href="#linka">
-                                                                        <img src = "cid:image7" width="20" height="" style="width: 100%; max-width: 20px; height: auto;"></a></p>
-                                                                </td>
-                                                            </tr>
-                                                            <tr><td>&nbsp;</td></tr>
-                                                            <tr>
-                                                                <td>
-                                                                    <img src="cid:image15" width="730" height="240" border="0" alt="alt_text" style="width: 100%; max-width: 730px; height: 240px; background: #dddddd; font-family: sans-serif; font-size: 15px; line-height: 5px; color: #555555;" class="center-on-narrow">
-                                                                </td>
-                                                            </tr>
-                                                        </table>
-                                                    </td>
-                                                </tr>
-                                                <tr><td style="font-size:0;"><img src="cid:imageb" width="770" height="" border="0" alt="alt_text" style="width: 100%; max-width: 770px; height: auto; background: #d6d6d6; font-family: sans-serif; font-size: 15px; line-height: 5px; color: #555555;border-radius: 0 0 20px 20px;" class="center-on-narrow"></td>    
-                                                </tr>
-                                            </table>
-                                        </div>
-                                        <!--[if mso]>
-                                        </td>
-                                        </tr>
-                                        </table>
-                                        <![endif]-->
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td width="10">&nbsp;</td>
-                                    <td align="center" valign="top" style="font-size:0; padding: 0 0 5px 2px;">
+                        <![endif]-->      
+                        <table align="center" role="presentation" border="0" cellpadding="0" bgcolor="#D7C7C7" cellspacing="0" width="100%" style="max-width:980px; background-color:#D7C7C7;">     
+                            <tr>
+                                <td align="center" valign="top" style="font-size:0;">
                                     <!--[if mso]>
-                                    <table role="presentation" border="0" cellspacing="0" cellpadding="0" width="770">
+                                    <table role="presentation" border="0" cellspacing="0" cellpadding="0" width="960">
                                     <tr>
-                                    <td valign="top" width="380">
+                                    <td valign="top" width="960">
                                     <![endif]-->
-                                    <div style="display:inline-block; width:100%; min-width:200px; max-width:378px; margin-right: 5px; vertical-align:top; padding: 0 0 15px 0;" class="stack-column">
-                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-radius: 20px;box-shadow: 3px 3px 10px grey;">
-                                            <tr><td><img src="cid:imagec" width="378" height="" border="0" alt="alt_text" style="width: 100%; max-width: 378px; height: auto; background: #ffffff; font-family: sans-serif; font-size: 0;color: #555555;border-radius: 20px 20px 0 0;"></td></tr>
-                                            <tr>
-                                                <td align="center" style="background: #ffffff; height: 260px">
-                                                    <table align="center" role="presentation" cellspacing="0" cellpadding="0" border="1" width="100%" height="220" style="border-collapse: collapse; border:1px solid #FFFFFF; font-size: 12px; max-width:360px; text-align: center;">
-                                                        <tbody>
-                                                            <tr> 
-                                                                <th style="background-color: #B1C1D8; height: 30px;">Metric</th> 
-                                                                <th style="background-color: #B1C1D8;">Change (2 Week)</th> 
-                                                                <th style="background-color: #B1C1D8;">Capacity Date</th>
-                                                            </tr> 
-
-                                                            <tr> 
-                                                                <td align="center" style="background-color: #B1C1D8;font-weight: 400;height: 30px;"><i><b>Tables</b></i></td>
-                                                                <td style="background-color: #e9edf4">$t2a</td>
-                                                                <td style="background-color: #e9edf4">$t2b</td>
-                                                            </tr> 
-
-                                                            <tr> 
-                                                                <td align="center" style="background-color: #B1C1D8;font-weight: 400;height: 30px;color: red;"><i><b>Storage</b></i></td> 
-                                                                <td style="background-color: #e9edf4; color: red;">$t2c</td> 
-                                                                <td style="background-color: #e9edf4; color: red;">$t2d</td>
-                                                            </tr> 
-
-                                                            <tr> 
-                                                                <td align="center" style="background-color: #B1C1D8;font-weight: 400;height: 30px;"><i><b>CPU</b></i></td> 
-                                                                <td style="background-color: #e9edf4">$t2e</td> 
-                                                                <td style="background-color: #e9edf4">$t2f</td>
-                                                            </tr> 
-
-                                                            <tr> 
-                                                                <td align="center" style="background-color: #B1C1D8;font-weight: 400;height: 30px;"><i><b>Connections</b></i></td> 
-                                                                <td style="background-color: #e9edf4">$t2g</td> 
-                                                                <td style="background-color: #e9edf4">$t2h</td>
-                                                            </tr>
-                                                        </tbody>
-                                                    </table>
-                                                </td>
-                                            </tr>
-                                            <tr><td style="font-size:0; padding:0;"><img src="cid:imaged" width="378" height="" border="0" alt="alt_text" style="width: 100%; max-width: 378px; height: auto; background: #ffffff; font-family: sans-serif; font-size: 0; color: #555555;border-radius: 0 0 20px 20px;"></td></tr>
-                                        </table>
-                                    </div>
-                                    <!--[if mso]>
-                                    </td>
-                                    <td width="15"></td>
-                                    <td valign="top" width="380">
-                                    <![endif]-->
-                                    <div style="display:inline-block; width:100%; min-width:200px; max-width:378px; vertical-align:top; padding: 0 0 15px 0;" class="stack-column">
-                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-radius: 20px;box-shadow: 3px 3px 10px grey;">
-                                            <tr><td><img src="cid:imagec" width="378" height="" border="0" alt="alt_text" style="width: 100%; max-width: 378px; height: auto; background: #ffffff; font-family: sans-serif; font-size: 0;color: #555555;border-radius: 20px 20px 0 0;"></td></tr>
+                                    <div style="display:inline-block; width:100%; min-width:200px; max-width:960px; vertical-align:top; margin-top:310px;" class="stack-column">
+                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-radius: 20px; box-shadow: 3px 3px 10px #D7C7C7;">
+                                            <tr><td><img src="cid:imagea" width="960" height="" border="0" alt="alt_text" style="width: 100%; max-width: 960px; height: auto; background: #ffffff; font-family: sans-serif; font-size: 0;color: #555555;border-radius: 20px 20px 0 0;"></td></tr>
                                             <tr valign="top">
                                                 <td style="background: #ffffff; height: 260px; padding: 0px 0px;">
                                                     <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="font-size: 14px; text-align: left;" bgcolor="">
                                                         <tr>
-                                                            <td style="font-family: sans-serif; font-size: 12px; color: #294074; font-weight: normal; padding-top: 5px;padding-bottom:5px">
-                                                                <p style="margin: 0;"><b>&nbsp;&nbsp;Top 3 Schemas-Used Space (GB)</b></p>
+                                                            <td style="font-family: sans-serif; font-size: 16px; color: #294074; font-weight: normal; padding-top: 5px; padding-bottom:5px">
+                                                                <p style="margin: 0;"><b>&nbsp;&nbsp;&nbsp;&nbsp;Top 3 Schemas-Used Space (TB)</b></p>
                                                             </td>
                                                         </tr>
                                                         <tr>
                                                             <td>
-                                                                <img src="cid:image12" width="375" height="" border="0" alt="alt_text" style="width: 100%; max-width: 375px; height: 55px; background: #fff;">
+                                                                <img src="cid:image8" width="940" height="" border="0" alt="alt_text" style="width: 100%; max-width: 940px; height: 100px; background: #fff; padding-left: 10px">
                                                             </td>
                                                         </tr>
                                                         <tr>
-                                                            <td style="font-family: sans-serif; font-size: 12px; color: #294074; font-weight: normal; padding-top: 10px;padding-bottom: 5px;">
-                                                                <p style="margin: 0;"><b>&nbsp;&nbsp;Top 3 Schemas Table Count</b></p>
-                                                            </td>
-                                                        </tr>
-                                                        <tr>
-                                                            <td>
-                                                                <img src="cid:image13" width="375" height="" border="0" alt="alt_text" style="width: 100%; max-width: 375px; height: 55px; background: #fff;">
-                                                            </td>
-                                                        </tr>
-                                                        <tr>
-                                                            <td style="font-family: sans-serif; font-size: 12px; color: #294074; font-weight: normal; padding-top: 10px;padding-bottom: 5px;">
-                                                                <p style="margin: 0;"><b>&nbsp;&nbsp;Top 3 Stale Schemas</b></p>
+                                                            <td style="font-family: sans-serif; font-size: 16px; color: #294074; font-weight: normal; padding-bottom: 5px;">
+                                                                <p style="margin: 0;"><b>&nbsp;&nbsp;&nbsp;&nbsp;Top 3 Schemas Table Count</b></p>
                                                             </td>
                                                         </tr>
                                                         <tr>
                                                             <td>
-                                                                <img src="cid:image14" width="375" height="" border="0" alt="alt_text" style="width: 100%; max-width: 375px; height: 55px; background: #fff;">
+                                                                <img src="cid:image9" width="940" height="" border="0" alt="alt_text" style="width: 100%; max-width: 940px; height: 100px; background: #fff; padding-left: 10px">
+                                                            </td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td style="font-family: sans-serif; font-size: 16px; color: #294074; font-weight: normal; padding-bottom: 5px;">
+                                                                <p style="margin: 0;"><b>&nbsp;&nbsp;&nbsp;&nbsp;Stale Schemas</b></p>
+                                                            </td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td>
+                                                                <img src="cid:image10" width="940" height="" border="0" alt="alt_text" style="width: 100%; max-width: 940px; height: 100px; background: #fff; padding-left: 10px">
                                                             </td>
                                                         </tr>
                                                     </table>
-                                                </div>
                                                 </td>
                                             </tr>
-                                            <tr><td style="font-size:0; padding:0;"><img src="cid:imaged" width="378" height="" border="0" alt="alt_text" style="width: 100%; max-width: 378px; height: auto; background: #ffffff; font-family: sans-serif; font-size: 0; color: #555555;border-radius: 0 0 20px 20px;"></td></tr>
+                                            <tr><td style="font-size:0; padding:0;"><img src="cid:imageb" width="960" height="" border="0" alt="alt_text" style="width: 100%; max-width: 960px; height: auto; background: #ffffff; font-family: sans-serif; font-size: 0; color: #555555; border-radius: 0 0 20px 20px;"></td></tr>
                                         </table>
+                                    </div>
                                     <!--[if mso]>
                                     </td>
                                     </tr>
@@ -960,235 +701,7 @@ html_string = '''
                                     <![endif]-->
                                 </td>
                             </tr>
-                        </table>
-                        <!--[if mso]>
-                        </td>
-                        </tr>
-                        </table>
-                        <![endif]-->
-                    </td>
-                </tr>
-                <tr><td bgcolor="#AEAEAE" style="font-size:6px;">&nbsp;</td></tr>
-                <tr>
-                    <td>
-                        <!--[if mso]>
-                        <table align="center" role="presentation" border="0" cellspacing="0" cellpadding="0" width="980">
-                        <tr>
-                        <td valign="top" width="980">
-                        <![endif]-->
-                        <table align="center" role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:980px;">
-                                <tr>
-                                    <td width="200" rowspan="2" align="left" valign="top" style=" width: 200px;background-color: #B17877;" bgcolor="#B17877">
-                                        <!--[if mso]>
-                                        <table align="center" role="presentation" border="0" cellspacing="0" cellpadding="0" width="200">
-                                        <tr>
-                                        <td valign="top" width="200">
-                                        <![endif]-->
-                                        <table align="center" role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:200px; background-color: #B17877;">
-                                            <tr>
-                                                <td width="35%" valign="middle" style="padding: 5px 0px 5px 10px;"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADYAAAAyCAYAAAAX1CjLAAATaklEQVRoQ9WaeVwUR/bAu7qnew5gZBAQYUAuAR0jCghEUECQSDxRUVTUeASiMSprTMRoAkR34xlFExET7wvQGEVQ0CiKB4igohyC3JeMXMMwZx+1nybBHwYUTNz97K/+gqmqV+9b9d6rV28GIG/ZvL29OSUlJdZardaGx+PpQwiBTCaT6+rq1hkZGVXn5eVJO0W6ubkJy8rKRsjlcnscx/W0Wi0lEonquFxuWXt7+yC1Wu1B0/R7OI6LSZLsh2EYRZJkE5fLzYcQZopEotTq6urSt1SxYzjo6yRbW1tuS0tLcHt7+yqCIIaYmJhwRCIRQxAEVCqVWHNzM9Pa2qokSbIYAJCMoijUaDShIpHIxNLSEvbv3x8AAJDW1lYolUqhjo4O6ubmBh0dHWlzc3NUKBTSGo0G1NXVIbm5uejt27fBkydPNDweL5HL5W5qaGgo66uufQaztbUVVldXJxoZGY1bvXo1PTt4LirQ6wfkSi1CUjTKIziMDg+HSkUb8iDnPh0fH4/m5OSAiIgIesrUQE6bmkZa5UqagQiiJ+BiBkI+ItThoTTNIOdvFSpyimqBXKkmdHlc0tbCEB1mZYTZWxhj1eUl9JdffgnS09NlOjo6S5uami4gCAL7AtiXEwNcLvfq8OHDvVJSUpCaFi31fcJtOq+0nqBpBAMAAggR9g/K2FCP9B1pAxdPcsZFenzOtZxS9fZTGeB5s5wAAKCsQpBBIIeDUm5DxOTHU1wxW3F/7KsDadpbjyp4CIL8PgZChOBgZOhUVzLYz5E4euhnZs2aNcyAAQMWV1RUnHonYC4uLjMKCwtPlZaVoUlZVaq9v9wRoH8o2dMCOjxCnbZrMWf9/jRFem5pP9b8XtdYAFszQ8WBddO5qVklym0nb+gwEGJdx4uNhKqfI2Zybly9BOfMmUM6OzuPzMrKKukNrtcTIwiiOCYmRjzafxpc+G3Cy13tUTBAmJRti7QnUh9oT1x5KOxt8c5+BkL60vZF1MPiOs2Gn9J0Ifz95Dpbf6FAff67BZxPl4VSZ8+eTZbL5TN7k/1GsICAAG5aWlpzWVkZEXk8i3r47DkL9tpmbqyviI+ew/VcHosyDHxFud4UYeGu7FoC487fU565/kQPgFcD21z/EUobbiMnJCQkX6lUOvUm741gU6ZMsU9LS3vU2NiITVx3ArYpNPjrBQJ44ItAZWp2MX3m+pM+n1ZXefp6PNWFfy0g5kadpmpetHG79o11tFTNG22Curu7lzMMM+Rvgfn5+U2sqak5cy0jC5kacYygaOa1p8DFMfrmD2GIx7JYmqIZoreFX9e/Ysb7CntzQ3TFrgtcgPwecNjm6WipWuhpCry8vAoUCoVzb/LfeGIeHh6zAQA/HTx5jgiOPI2zl/HrBA4w0NUmRM3Fxq6IQ/9sRr0p0dEPYUcc52AoeWnHYiRs6y9MeX3Ly1ObNNpB7W2NYZMnT76uVCo/6E3mG8H8/PymqlSqY4dOsWDxxJvARjmIVRHzvcDMjSdR/1F21AjbgRjNMEjy3SI6v1zK7wWWWjLRhRw1RMzBcQ5ib94fi0m8Qydcf9xh+mz0XBXkqaTqcrGoqKjdNTU1X/4tMB8fH0ltbe39m3fug8kRR3GK6tkU2Xts2tghypUzPXAMRUF5XRN150kVwDAUzvJ5D9t89Dr1W04pvydlAADMofUz1EoNCTKfVJPl9c2ceeNHcG7lVWDH0x52hH4GQubIhiDN3u++Ru7evTspPz//2t8Cc3Z2FhQUFDRIpVLupIiToE2h4fQkkAVbEOCknek9DFm1K4kurW3iLZ/u3u7vOhi/eKtIFfC+HX/216dw9h7/8/x+ulwqdecSMOOr4+p9awLx8D0X6c9mvo9eyX4Gk+8UdURhoS5Pe+7bYODu6tL68ccfW61du1bxt8BY0yMIor6srMxwdewNuqyuucegwILN8JIoxzpaoav3XOxQhotztD5O1tSdx5XY2c0hIPibU0hTm7LbfGORLn120zzo+el+lPUzhkFA4qZ51NYT6UxucV2Hj7kPtVCvmuyAjRo1Klcul7v3BsX293pBCwSCrNTU1JEXHrVRV19jTqygD1wHtwWOHcYJ23ZO0DXZgBAyv2wOob75+Sp8Ut7wSghn5+nwcera7o/R0cv2ITQNURpCJmXrQmZ1zEWmtLaZYGPKV/O9Vc3P7nKioqI219XVRb8TMEtLy6jQ0NC1QzymMlGHfmOV7nEzAtzs26aOGcoJ235O0HUAAxF4MGI6eTA5B955XNkNjPWx6zEfU4v/dYYqq2sW/B9YMlNa20TwCA6ZtGU+DAqcolCpVE6ZmZkV7wQsICBgaFNTU9YvF9PwwPXHORTNdPMT1hSD/YarXOzFyNofU14JEizYgS+maY9feQQzHpb3mLnMGT9c5j3ChvPJtnMCioHgzLfztFtOpCM5T2sJf9fBqhBPMcfLy+t2S0uLT1+g+mSKkZGR6JYtW2qqqqqMFm1LZmpftHXzExZs/QLv9pY2JYg9f0+n6+Is2ImvZ1O7z9xC7hfW9py5AITK3L8cTPriMP2iRUHsWxuo+fVGPpp6rxg7uH6mJv7nGJCQkBBaXl5+7J2BdfiBjs6Ny5cvu6fkK+nLWU+7h22IwJjwycqr2c+oC7cL+3VdHOdg5KXtH8GQ6AT4vFnezRQ7x64L8ZKJjfuhK3Ze0N26PEB9+3EFUl7fwny/fDwxTCIpDQ0NdYyMjNS+UzB7e/slEydO3Dt1/gq4clcSD2Vziy6NPbHlgW5yI5EuEn3oN72ufeNdbBULA5zQudHx3Dc9dxAG0jd+DEMWbk7UfjF3LHo+o4CZOnYouH7+BNi7d+/Gurq6bX2F6pMpsoPmzZsnzMjIKHvw6LHezK8TYGu7qtvOW5joq49tnIV7LY9jY22HH9IMhMc3ztKe/i2PTrlbJOjtbbb4Q5e2MSMsMXPjfsSxtIeK+eOG6Lq5uVaam5uPSE9Pb3/nYKxAXV3d9CtXroy+8EhGXs4qFvx5ETa6/bxuulraooDrYi/xEQSgA/vrqY9unIVOizgGFCrtG14Gv0sDAFKXdyyBrXIlycEwNGbbt+DkyZMrpVJp3NtA9fnE2IF2dnbzfX1945as+gou+e5sj2bF5+LaazFLsWfVjfTJq48oFwcxg6IAifz5Kh8A0C2a9qTsCNuB7T+smcp7WljA+PqOU4jF4g2NjY0clUplq1Ao7EUi0fWGhobvegPt9YLuFBAUFMTPyMgoyL6faxZxKIPKL2t4JYhABIGhk0ep5o4bgv/zn/+kg4ODUYlEgpEMgFXPW5h1+1OZ6obWNz5UAUDIfWumMcNtB3Ia6mvhzZs3EYZhEDMzM2hmZgbKyspgYGBgK0mSA3or6vQZjAU0MDDY+vnnn68aPSGYXr3nIhf8UXxhF5k0eohifYgnf/jw4XRJSQnh6uqqSk27gq8/cF37/jALxNRQCD7/IYX3pix/iseQ9kAvCefTHRfQ92xNGHtzQ3a/2OcMFeI/ksh/mI1OmDChSKPRDH9nJ8YKCggIMHr06NGD27fvGMdeKiRT7/3ua072pqq9qyYRy5Z9otbX1yd8fHzgOD9/dPPRG5rUeyWC6V5DlbN9h2OzvzlNdNmMbrr9I3hMu/VAEXooJYfDVr+M9PVoJ3tT+MEoWzw56TxctmyZxszMbPKTJ0/S3ykYK2zgwIGrXVxcvjt09Di6+8w9SktRYH3IWOzbqG/o6Oho/GltqyY1qwS5nPkUVag1nLGOVmTUkvF4tbSVmRMZzwHg1UJNp4Lsmytm1RSVhQhwlEplx8ctLS0gLy8PHjt2DGZnZ7eKRKK1Uqn0aG9QbxU8OoVFRkZydu7cecLT03Papk2bUBzHkT179mgOHz7Mv3DhAun2vgdW09hOtyu1zCBTEUYrZVhqaqrS1WeSYMG3Ca99XbPJ7umoYO3nny4GV65cKdFoNAiHw6FwHK/m8/nXRSLR8dLS0pfl897g3srHOoWx5e7nz59vUalU01EUbTMyMorQaDRDZTLZEisrq/5ubm6ESCSiCgsL0ezs7CY3N7cB2388SizYlIC9zsfY1OvS9o+oKRPGITKZzKGkpOStStrdrp/eyN+239nZGZfJZHYGBgZCDMOqUBS15nA4l2KPxHPmRMbjnRXhP8ulKAbeiv2EcZQ4kARBmBcXFze+7dpdx/+lE3ubBX19fUcplcqbh+PPI7O/OUV0rTx1lQMZhL4btwyxH2zT6OjoaJ2UlPS7o/3F9h8HMzExkYjF4gdnktKYwPXH2eyjxxKevi5ffTY6CLO1sS6IjY11njVrFv0XmTqm/cfB3NzcxG1tbY9v3LnH/3DtYYymYY91k9HDBikWjhmIzpw5M76qqmrR34H6r4B5enqKiouLiwuKioXTN55mv3rqMWeMWOAjr8i+hO3evfsftbW1+//nwdjrYfv27YWZWVkWu5KK6Jyntd3ec2xd5LfdS+kJft6MTCYbU1xcnP0/D8YqqKOjc3nDhg0+XpPm0it2nif+VIajl01z1/gOM8SdnEbKHRwcrLKystr+X4BZWlouVKlUB65du4a80PDoX27mIxTNgPdsTKCXoxWKaloQf39/ACEMqq6uPv93of4rPsYuEhQUhKWnp8dACEPDw8MZPz8/BEVR9jtmmJycjCQnJ7cKhcLVDQ0Np3vL2vsK/R+Pil0UAebm5pMbGxvnQwjNAAAkAKBcIBBcmT59ekJcXBzZV6X7Mu6/CfZafQI+S+Ei/FojqOVweAjS+uuuRa1dB38UeZ1X01xsrGVQzNyQ33QiMuSlDwZ8FsO9tGelpltKFR4ezlcoFB2A9fX1SFJSkupdmUNfdvaD8J9cpa3KzTjOKcEBQqlIyppL4Le4Jg7bvZEbTFq9yXQtRX4EUKSOg2JakmIsuASaKRmBbYsLC6NGLd17daJY8kFkpA/1SkplY2PzG0mSVVwuF1AUxaMo6kV1dfXKvsKFhoYK4uLi/lL6E7p/P56brS2w8h8nSZwleVlac1m691ddAt9OQThYQ5EuluMHrEzszEQgBJ4rYhfRWuh194B0kXuoce4E0yEu3cAGDRoUV1lZGdpJ6+LiEmZlZZWemJj4tEtm0vW3FZ3m2/GZu7v7d5mZmeu6+lIPm8LO6ZTx8u/PYlK4tx6UlKLuPKucsLCXPha48ZijPp9LFlS82CfR5006uHWJvOtpBAUlYBVC6R1LQ2P/qpbGGwF9AXNycpo9ePDg/BcvXhCVlZUbKIpSiUSirx4+fFghkUimqFSqhRBCyszMbCv7q5za2toYPp+fzDBMjFwu34KiqJWpqemPCoXCyMbG5nFpaenAtra2JVwud61Wqx0DAJgAAHiCYdiWgoIC7YefHwlraJatM+oniFQr6GSkuL41PT2SCt50yryyunn73f2fzu7JpMev+inMRtz/6YOS+l09gtnZ2d0UCASZ7GSlUmlEUdQAsVi8iiTJMWKx+MiLFy9AeXn5PlNT0x2NjY2T582btyM/Px8UFRVt9vb2/iYnJyfazMws8v79+0kYhk0MCQkha2pqjFJTU08PHTr0YHV1tRGfz9/T2tr6tb29/bGUlJSSyZMn9y8oKIgpLS2dy677fvhOvj6qb9Wu0sxQqqlgimFaLYyFaxrbVJ/cjV3+UU9gc6NPB+tw+cq80troHsEcHBwOFhUVrenXrx97tzAtLS1yCwuLpdbW1gfT09M7HNLFxcUbRVFaKpV6YBjmSZJkNUEQR549e5bp4eHxr9ra2i0Yhh0pLS2d2qmEhYVFvL29/cWqqqrCp0+f3re2tj7L5XJb2H6GYSCGYWLXWT8E1isqRqVuW5TxUvnISHRCm/kCWbvGEcWQoaY+hh++9K8uhJ6fxu4dKBLsqJK2n+sRTCKRxOXn57/0MXbuyJEj/UQiUcm1a9cq2f+dnJzCVCpVIUEQcpIk8wEAuiRJrpVIJN9LpdJwoVAYWVhYmFJRUeHLjt+/f79g8+bN5+3t7Y9IpdJ8tgA0dOjQ7SNHjozW0dFRabVarKSkZJ7x2NBfn9U2P3h8NNyi66kER54a/aymMRigQFfA5Z27sWdpUtf+D8ITDBqa6+/pWw13UNUV3u8RzMnJaVdubu7qrhO9vb15FRUV+/h8fjZFUTokSfLt7Ox2lJWVbREKhY8QBKFkMtkIOzu7LyorK8MwDONgGHZNLpcv0tXVbaRpuk0ul4+VSCTxz58/L8rNzc1zdnZ2kMlkS42NjR9KpVJbHMcfzp49+8LVBpNtKi2pp8cndo54b5AsL69uYJuqfYueAI/U1xMUVUvb9qMYyDI10EnU4eFUtbTdtV2tiTLpL1ybsu2jVJele4stBxis7/gu9I+GYxw1eF24ZtOgx48fmzMMQxYXF9ezFhQUFEQUFhYOoGkatbS0fH7p0iUNm72npaUZyOXykBkzZuwyMDDAMzIyYEFBwZagoKAv8/Pz6cTExI5Ho7+/v059ff0AkiRlRUVFTR16BCVgrv2ej+bixAg1TRMoA+RcAmbc/GF5EVvzDgpP4Ne0N4xFADaEgpADICLl8TgP2pWa7yUG9lMr1aW+pLbz8UojDINDggPV7yzzcHR0dFWpVH6GhobqpqYmAZfLPZyXl1fTl0v6r4xhr4o9Kz/slnF0yvo3L0cOBcNuHMwAAAAASUVORK5CYII=" alt=""/></td>
-                                                <td valign="middle"><p style="color:#ffffff; font-size: 14px;"><b>corp_pgs</b></p></td>
-                                            </tr>
-                                            <tr>
-                                                <td colspan="2" style="color:#ffffff;padding: 10px 10px; font-size: 14px;">
-                                                    <p>
-                                                        <strong>Version:</strong>
-                                                        <span>$scorppgsv</span>
-                                                      </p>
-                                     
-                                                      <p>
-                                                         <strong>Role:</strong>
-                                                         <span>$scorppgsr</span>
-                                                      </p>
-                                     
-                                                      <p>
-                                                         <strong>Type:</strong>
-                                                         <span>db.m4.xlarge</span>
-                                                      </p>
-                                     
-                                                      <p>
-                                                         <strong>Nodes:</strong>
-                                                         <span>$scorppgsn</span>
-                                                      </p>
-                                     
-                                                      <p>
-                                                         <strong>Storage (TB):</strong>
-                                                         <span>$scorppgss</span>
-                                                      </p>
-                                     
-                                                      <p>
-                                                         <strong>Available:</strong>
-                                                         <span>$scorppgsa</span>
-                                                      </p>
-                                     
-                                                      <p>
-                                                         <strong>Availability:</strong>
-                                                         <span>$scorppgsay</span>
-                                                      </p>
-                                     
-                                                      <p>
-                                                         <strong>Recent Snapshots:</strong>
-                                                         <span>$scorppgsrs</span>
-                                                      </p>
-                                                </td>
-                                            </tr>
-                                        </table>
-                                        <!--[if mso]>
-                                        </td>
-                                        </tr>
-                                        </table>
-                                        <![endif]-->
-                                    </td>
-                                    <td width="10">&nbsp;</td>
-                                    <td align="left" valign="top" style="font-size:0; padding: 25px 0 15px 0;">
-                                        <!-- 1st row -->
-                                        <!--[if mso]>
-                                        <table role="presentation" border="0" cellspacing="0" cellpadding="0" width="770">
-                                        <tr>
-                                        <td valign="top" width="770">
-                                        <![endif]-->
-                                        <a id="link3">
-                                            <!--[if mso]>
-                                            <a href="link6" name="link6" jumpthis="link6"></a>
-                                            <![endif]-->
-                                        </a>
-                                        <div style="display:inline-block; margin: 0; width:100%; min-width:200px; max-width:770px; vertical-align:top;" class="stack-column">
-                                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-radius: 20px; max-width: 760px; box-shadow: 3px 3px 10px grey;">
-                                                <tr><td style="font-size:0;"><img src="cid:imagea" width="770" height="" border="0" alt="alt_text" style="width: 100%; max-width: 770px; height: auto; background: #d6d6d6; font-family: sans-serif; font-size: 15px; line-height: 5px; color: #555555; border-radius: 20px 20px 0 0;" class="center-on-narrow"></td></tr>
-                                                <tr>
-                                                    <td style="padding: 0px 5px; background: #ffffff; height: 240px;">
-                                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="font-size: 14px; text-align: left;" bgcolor="">
-                                                            <tr>
-                                                                <td style="font-family: sans-serif; font-size: 16px; color: #294074; font-weight: normal;" class="stack-column-center">
-                                                                    <p style="margin: 0;">&nbsp;&nbsp;<b><i>Capacity-4/17-6/17/2019</i></b><a href="#linka">
-                                                                        <img src = "cid:image7" width="20" height="" style="width: 100%; max-width: 20px; height: auto;"></a></p>
-                                                                </td>
-                                                            </tr>
-                                                            <tr><td>&nbsp;</td></tr>
-                                                            <tr>
-                                                                <td>
-                                                                    <img src="cid:image19" width="730" height="240" border="0" alt="alt_text" style="width: 100%; max-width: 730px; height: 240px; background: #dddddd; font-family: sans-serif; font-size: 15px; line-height: 5px; color: #555555;" class="center-on-narrow">
-                                                                </td>
-                                                            </tr>
-                                                        </table>
-                                                    </td>
-                                                </tr>
-                                                <tr><td style="font-size:0;"><img src="cid:imageb" width="770" height="" border="0" alt="alt_text" style="width: 100%; max-width: 770px; height: auto; background: #d6d6d6; font-family: sans-serif; font-size: 15px; line-height: 5px; color: #555555;border-radius: 0 0 20px 20px;" class="center-on-narrow"></td>    
-                                                </tr>
-                                            </table>
-                                        </div>
-                                        <!--[if mso]>
-                                        </td>
-                                        </tr>
-                                        </table>
-                                        <![endif]-->
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td width="10">&nbsp;</td>
-                                    <td align="center" valign="top" style="font-size:0; padding: 0 0 5px 2px;">
-                                    <!--[if mso]>
-                                    <table role="presentation" border="0" cellspacing="0" cellpadding="0" width="770">
-                                    <tr>
-                                    <td valign="top" width="380">
-                                    <![endif]-->
-                                    <div style="display:inline-block; width:100%; min-width:200px; max-width:378px; margin-right: 5px; vertical-align:top; padding: 0 0 15px 0;" class="stack-column">
-                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-radius: 20px;box-shadow: 3px 3px 10px grey;">
-                                            <tr><td><img src="cid:imagec" width="378" height="" border="0" alt="alt_text" style="width: 100%; max-width: 378px; height: auto; background: #ffffff; font-family: sans-serif; font-size: 0;color: #555555;border-radius: 20px 20px 0 0;"></td></tr>
-                                            <tr>
-                                                <td align="center" style="background: #ffffff; height: 260px">
-                                                    <table align="center" role="presentation" cellspacing="0" cellpadding="0" border="1" width="100%" height="220" style="border-collapse: collapse; border:1px solid #FFFFFF; font-size: 12px; max-width:360px; text-align: center;">
-                                                        <tbody>
-                                                            <tr> 
-                                                                <th style="background-color: #B1C1D8; height: 30px;">Metric</th> 
-                                                                <th style="background-color: #B1C1D8;">Change (2 Week)</th> 
-                                                                <th style="background-color: #B1C1D8;">Capacity Date</th>
-                                                            </tr> 
-
-                                                            <tr> 
-                                                                <td align="center" style="background-color: #B1C1D8;font-weight: 400;height: 30px;"><i><b>Tables</b></i></td>
-                                                                <td style="background-color: #e9edf4">$t3a</td>
-                                                                <td style="background-color: #e9edf4">$t3b</td>
-                                                            </tr> 
-
-                                                            <tr> 
-                                                                <td align="center" style="background-color: #B1C1D8;font-weight: 400;height: 30px;color: red;"><i><b>Storage</b></i></td> 
-                                                                <td style="background-color: #e9edf4; color: red;">$t3c</td> 
-                                                                <td style="background-color: #e9edf4; color: red;">$t3d</td>
-                                                            </tr> 
-
-                                                            <tr> 
-                                                                <td align="center" style="background-color: #B1C1D8;font-weight: 400;height: 30px;"><i><b>CPU</b></i></td> 
-                                                                <td style="background-color: #e9edf4">$t3e</td> 
-                                                                <td style="background-color: #e9edf4">$t3f</td>
-                                                            </tr> 
-
-                                                            <tr> 
-                                                                <td align="center" style="background-color: #B1C1D8;font-weight: 400;height: 30px;"><i><b>Connections</b></i></td> 
-                                                                <td style="background-color: #e9edf4">$t3g</td> 
-                                                                <td style="background-color: #e9edf4">$t3h</td>
-                                                            </tr>
-                                                        </tbody>
-                                                    </table>
-                                                </td>
-                                            </tr>
-                                            <tr><td style="font-size:0; padding:0;"><img src="cid:imaged" width="378" height="" border="0" alt="alt_text" style="width: 100%; max-width: 378px; height: auto; background: #ffffff; font-family: sans-serif; font-size: 0; color: #555555;border-radius: 0 0 20px 20px;"></td></tr>
-                                        </table>
-                                    </div>
-                                    <!--[if mso]>
-                                    </td>
-                                    <td width="15"></td>
-                                    <td valign="top" width="380">
-                                    <![endif]-->
-                                    <div style="display:inline-block; width:100%; min-width:200px; max-width:378px; vertical-align:top; padding: 0 0 15px 0;" class="stack-column">
-                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-radius: 20px;box-shadow: 3px 3px 10px grey;">
-                                            <tr><td><img src="cid:imagec" width="378" height="" border="0" alt="alt_text" style="width: 100%; max-width: 378px; height: auto; background: #ffffff; font-family: sans-serif; font-size: 0;color: #555555;border-radius: 20px 20px 0 0;"></td></tr>
-                                            <tr valign="top">
-                                                <td style="background: #ffffff; height: 260px; padding: 0px 0px;">
-                                                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="font-size: 14px; text-align: left;" bgcolor="">
-                                                        <tr>
-                                                            <td style="font-family: sans-serif; font-size: 12px; color: #294074; font-weight: normal; padding-top: 5px;padding-bottom:5px">
-                                                                <p style="margin: 0;"><b>&nbsp;&nbsp;Top 3 Schemas-Used Space (GB)</b></p>
-                                                            </td>
-                                                        </tr>
-                                                        <tr>
-                                                            <td>
-                                                                <img src="cid:image16" width="375" height="" border="0" alt="alt_text" style="width: 100%; max-width: 375px; height: 55px; background: #fff;">
-                                                            </td>
-                                                        </tr>
-                                                        <tr>
-                                                            <td style="font-family: sans-serif; font-size: 12px; color: #294074; font-weight: normal; padding-top: 10px;padding-bottom: 5px;">
-                                                                <p style="margin: 0;"><b>&nbsp;&nbsp;Top 3 Schemas Table Count</b></p>
-                                                            </td>
-                                                        </tr>
-                                                        <tr>
-                                                            <td>
-                                                                <img src="cid:image17" width="375" height="" border="0" alt="alt_text" style="width: 100%; max-width: 375px; height: 55px; background: #fff;">
-                                                            </td>
-                                                        </tr>
-                                                        <tr>
-                                                            <td style="font-family: sans-serif; font-size: 12px; color: #294074; font-weight: normal; padding-top: 10px;padding-bottom: 5px;">
-                                                                <p style="margin: 0;"><b>&nbsp;&nbsp;Top 3 Stale Schemas</b></p>
-                                                            </td>
-                                                        </tr>
-                                                        <tr>
-                                                            <td>
-                                                                <img src="cid:image18" width="375" height="" border="0" alt="alt_text" style="width: 100%; max-width: 375px; height: 55px; background: #fff;">
-                                                            </td>
-                                                        </tr>
-                                                    </table>
-                                                </div>
-                                                </td>
-                                            </tr>
-                                            <tr><td style="font-size:0; padding:0;"><img src="cid:imaged" width="378" height="" border="0" alt="alt_text" style="width: 100%; max-width: 378px; height: auto; background: #ffffff; font-family: sans-serif; font-size: 0; color: #555555;border-radius: 0 0 20px 20px;"></td></tr>
-                                        </table>
-                                    <!--[if mso]>
-                                    </td>
-                                    </tr>
-                                    </table>
-                                    <![endif]-->
-                                </td>
-                            </tr>
+                            <tr><td bgcolor="#D7C7C7" style="font-size:20px;">&nbsp;</td></tr>
                         </table>
                         <!--[if mso]>
                         </td>
@@ -1220,8 +733,9 @@ html_string = '''
                                     <![endif]-->
                                     <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:960px; margin: auto;">
                                         <tr>
-                                            <td width="80%" align="right" style="padding-top:0px; padding-right: 0px;"><i style="color:#ffffff;">Powered By</i></td>
-                                            <td width="20%" align="right"><img src="https://redshift-monitoring-plots.s3.amazonaws.com/footerlogo.png" width="100%" height="80" alt="footer logo" border="0" style="height: 60%; font-family: sans-serif; font-size: 15px; line-height: 15px; max-width: 230px;"></td>
+                                            <td width="79%" align="right" style="padding-top:0px; padding-right: 0px;"><i style="color:#ffffff;">Powered By</i></td>
+                                            <td width="20%" align="right"><img src="cid:image20" height="80" alt="footer logo" border="0" style="height: 60%; font-family: sans-serif; font-size: 15px; line-height: 15px; max-width: 230px;"></td>
+                                            <td width="1%"></td>
                                         </tr>
                                     </table>
                                     <!--[if mso]>
@@ -1269,20 +783,7 @@ s = Template(html_string).safe_substitute(suniccpr=uniccp[4],
                                           suniccprs=uniccp[7],
                                           suniccpv=uniccp[8],
                                           suniccpn=uniccp[9],
-                                          sinvsrr=invsr[4],
-                                          sinvsrs=invsr[6],
-                                          sinvsra=invsr[3],
-                                          sinvsray=invsr[5],
-                                          sinvsrrs=invsr[7],
-                                          sinvsrv=invsr[8],
-                                          sinvsrn=invsr[9],
-                                          scorppgsr=corppgs[4],
-                                          scorppgss=corppgs[6],
-                                          scorppgsa=corppgs[3],
-                                          scorppgsay=corppgs[5],
-                                          scorppgsrs=corppgs[7],
-                                          scorppgsv=corppgs[8],
-                                          scorppgsn=corppgs[9],
+                                          suniccplcr=uniccp[10],
                                           t1a=change2week_uniccp[0], 
                                           t1b=capacitydate_uniccp[0], 
                                           t1c=change2week_uniccp[1], 
@@ -1291,23 +792,10 @@ s = Template(html_string).safe_substitute(suniccpr=uniccp[4],
                                           t1f=capacitydate_uniccp[2],
                                           t1g=change2week_uniccp[3], 
                                           t1h=capacitydate_uniccp[3],
-                                          t2a=change2week_uniccp[0], 
-                                          t2b=capacitydate_invsr[0], 
-                                          t2c=change2week_invsr[1], 
-                                          t2d=capacitydate_invsr[1],
-                                          t2e=change2week_invsr[2], 
-                                          t2f=capacitydate_invsr[2],
-                                          t2g=change2week_invsr[3], 
-                                          t2h=capacitydate_invsr[3],
-                                          t3a=change2week_corppgs[0], 
-                                          t3b=capacitydate_corppgs[0], 
-                                          t3c=change2week_corppgs[1], 
-                                          t3d=capacitydate_corppgs[1],
-                                          t3e=change2week_corppgs[2], 
-                                          t3f=capacitydate_corppgs[2],
-                                          t3g=change2week_corppgs[3], 
-                                          t3h=capacitydate_corppgs[3])
-                                          
+                                          week1=week[0][0:10],
+                                          week2=week[0][12::],
+                                          capacity=capacity1[0])
+
 msgAlternative = MIMEMultipart('alternative')
 msg.attach(msgAlternative)
 
@@ -1315,77 +803,52 @@ msg.attach(msgAlternative)
 msgText = MIMEText(s, 'html')
 msgAlternative.attach(msgText)
 
-# This example assumes the images are in the current directory
-fp = open('images/header.png', 'rb')
+fp = open('assets/header.png', 'rb')
 msgImage1 = MIMEImage(fp.read())
 fp.close()
-fp = open('images/footer.png', 'rb')
+fp = open('assets/footer.png', 'rb')
 msgImage2 = MIMEImage(fp.read())
 fp.close()
-#fp = open('images/ast.png', 'rb')
+#fp = open('assets/ast.png', 'rb')
 #msgImage3 = MIMEImage(fp.read())
 #fp.close()
-fp = open('clusterstats.png', 'rb')
+fp = open('graph_images/clusterstats.png', 'rb')
 msgImage4 = MIMEImage(fp.read())
 fp.close()
-fp = open('images/IAS_logo_shadow.png', 'rb')
+fp = open('assets/IAS_logo_shadow.png', 'rb')
 msgImage5 = MIMEImage(fp.read())
 fp.close()
-fp = open('images/title_big.png', 'rb')
+fp = open('assets/title_big.png', 'rb')
 msgImage6 = MIMEImage(fp.read())
 fp.close()
-fp = open('images/button1.png', 'rb')
+fp = open('assets/button1.png', 'rb')
 msgImage7 = MIMEImage(fp.read())
 fp.close()
-fp = open('latestschemacapacity_uniccp.png', 'rb')
+fp = open('graph_images/latestschemacapacity_uniccp.png', 'rb')
 msgImage8 = MIMEImage(fp.read())
 fp.close()
-fp = open('latesttablecapacity_uniccp.png', 'rb')
+fp = open('graph_images/latesttablecapacity_uniccp.png', 'rb')
 msgImage9 = MIMEImage(fp.read())
 fp.close()
-fp = open('schemas_uniccp.png', 'rb')
+fp = open('graph_images/schemas_uniccp.png', 'rb')
 msgImage10 = MIMEImage(fp.read())
 fp.close()
-fp = open('capacity_date_uniccp.png', 'rb')
+fp = open('graph_images/capacity_date_uniccp.png', 'rb')
 msgImage11 = MIMEImage(fp.read())
 fp.close()
-fp = open('latestschemacapacity_invsr.png', 'rb')
-msgImage12 = MIMEImage(fp.read())
-fp.close()
-fp = open('latesttablecapacity_invsr.png', 'rb')
-msgImage13 = MIMEImage(fp.read())
-fp.close()
-fp = open('schemas_invsr.png', 'rb')
-msgImage14 = MIMEImage(fp.read())
-fp.close()
-fp = open('capacity_date_invsr.png', 'rb')
-msgImage15 = MIMEImage(fp.read())
-fp.close()
-fp = open('latestschemacapacity_corppgs.png', 'rb')
-msgImage16 = MIMEImage(fp.read())
-fp.close()
-fp = open('latesttablecapacity_corppgs.png', 'rb')
-msgImage17 = MIMEImage(fp.read())
-fp.close()
-fp = open('schemas_corppgs.png', 'rb')
-msgImage18 = MIMEImage(fp.read())
-fp.close()
-fp = open('capacity_date_corppgs.png', 'rb')
-msgImage19 = MIMEImage(fp.read())
-fp.close()
-fp = open('images/footerlogo.png', 'rb')
+fp = open('assets/footerlogo.png', 'rb')
 msgImage20 = MIMEImage(fp.read())
 fp.close()
-fp = open('images/upcs.png', 'rb')
+fp = open('assets/upcs.png', 'rb')
 msgImagea = MIMEImage(fp.read())
 fp.close()
-fp = open('images/downcs.png', 'rb')
+fp = open('assets/downcs.png', 'rb')
 msgImageb = MIMEImage(fp.read())
 fp.close()
-fp = open('images/up.png', 'rb')
+fp = open('assets/upcs_overlay.png', 'rb')
 msgImagec = MIMEImage(fp.read())
 fp.close()
-fp = open('images/down.png', 'rb')
+fp = open('assets/bg_overlay.png', 'rb')
 msgImaged = MIMEImage(fp.read())
 fp.close()
 
@@ -1401,14 +864,6 @@ msgImage8.add_header('Content-ID', '<image8>')
 msgImage9.add_header('Content-ID', '<image9>')
 msgImage10.add_header('Content-ID', '<image10>')
 msgImage11.add_header('Content-ID', '<image11>')
-msgImage12.add_header('Content-ID', '<image12>')
-msgImage13.add_header('Content-ID', '<image13>')
-msgImage14.add_header('Content-ID', '<image14>')
-msgImage15.add_header('Content-ID', '<image15>')
-msgImage16.add_header('Content-ID', '<image16>')
-msgImage17.add_header('Content-ID', '<image17>')
-msgImage18.add_header('Content-ID', '<image18>')
-msgImage19.add_header('Content-ID', '<image19>')
 msgImage20.add_header('Content-ID', '<image20>')
 msgImagea.add_header('Content-ID', '<imagea>')
 msgImageb.add_header('Content-ID', '<imageb>')
@@ -1426,14 +881,6 @@ msg.attach(msgImage8)
 msg.attach(msgImage9)
 msg.attach(msgImage10)
 msg.attach(msgImage11)
-msg.attach(msgImage12)
-msg.attach(msgImage13)
-msg.attach(msgImage14)
-msg.attach(msgImage15)
-msg.attach(msgImage16)
-msg.attach(msgImage17)
-msg.attach(msgImage18)
-msg.attach(msgImage19)
 msg.attach(msgImage20)
 msg.attach(msgImagea)
 msg.attach(msgImageb)

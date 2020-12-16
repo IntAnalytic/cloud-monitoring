@@ -41,21 +41,24 @@ def sendfunc(rows1):
 
     sb.set_style('dark')
     fig, sb = plt.subplots()
+    sb.text(df.d, 0, " " + str('CPU (Avg)'), color='black', fontsize=15)
+    sb.text(df.e, width, " " + str('Connection (Max)'), color='black', fontsize=15)
+    sb.text(df.f, width + width, " " + str('Tables'), color='black', fontsize=15)
+    sb.text(df.g, width + width + width, " " + str('Storage Capacity'), color='black', fontsize=15)
     sb.barh(ind, df.d, width, color='#C7F0A0', label='CPU (Avg)')
     sb.barh(ind + width, df.e, width, color='#FFF4B2', label='Connection (Max)')
     sb.barh(ind + width + width, df.f, width, color='#FFACBC', label='Tables')
     sb.barh(ind + width + width + width, df.g, width, color='#B1C1D8', label='Storage Capacity')
 
     sb.set(yticks=ind, yticklabels=df.graph, ylim=[2*width - 1, len(df)])
-    sb.legend(loc='lower center',fontsize = 13,bbox_to_anchor=(0.5, -0.2),shadow=True, ncol=5,frameon=False)
 
     plt.xticks(np.arange(0,110,10))
     plt.grid(axis='x')
-    plt.xlabel('Total Capacity %', fontsize = 13)
-    plt.rcParams['xtick.labelsize']=12
+    plt.xlabel('Total Capacity %', fontsize=15)
+    sb.tick_params(axis= 'x', which='major', labelsize=15)
     plt.rcParams['ytick.labelsize']=12
     #plt.rcParams['axes.labelcolor']='cyan'
     plt.gca().axes.get_yaxis().set_visible(False)
 
-    plt.gcf().set_size_inches(14, 7)
-    fig.savefig('clusterstats.png',transparent=False, bbox_inches='tight', pad_inches=0)
+    plt.gcf().set_size_inches(20, 10)
+    fig.savefig('graph_images/clusterstats.png',transparent=False, bbox_inches='tight', pad_inches=0)
